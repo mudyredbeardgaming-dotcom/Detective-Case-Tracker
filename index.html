@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LAPD Detective Case Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="badge-icon">🔵</div>
+      <div>
+        <h1>LAPD Detective Bureau</h1>
+        <p class="subtitle">Case Management System</p>
+      </div>
+      <button id="btn-new-case" class="btn btn-primary">+ New Case</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Dashboard -->
+    <section id="view-dashboard">
+      <div class="stats-row">
+        <div class="stat-card" id="stat-open">
+          <span class="stat-num" id="count-open">0</span>
+          <span class="stat-label">Open Cases</span>
+        </div>
+        <div class="stat-card" id="stat-active">
+          <span class="stat-num" id="count-active">0</span>
+          <span class="stat-label">Active Investigations</span>
+        </div>
+        <div class="stat-card" id="stat-closed">
+          <span class="stat-num" id="count-closed">0</span>
+          <span class="stat-label">Closed Cases</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-num" id="count-total">0</span>
+          <span class="stat-label">Total Cases</span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <input type="text" id="search-input" placeholder="Search cases, suspects, detectives..." />
+        <select id="filter-status">
+          <option value="">All Statuses</option>
+          <option value="Open">Open</option>
+          <option value="Active">Active</option>
+          <option value="Pending">Pending</option>
+          <option value="Closed">Closed</option>
+          <option value="Cold">Cold</option>
+        </select>
+        <select id="filter-type">
+          <option value="">All Types</option>
+          <option value="Homicide">Homicide</option>
+          <option value="Robbery">Robbery</option>
+          <option value="Assault">Assault</option>
+          <option value="Narcotics">Narcotics</option>
+          <option value="Gang Activity">Gang Activity</option>
+          <option value="Fraud">Fraud</option>
+          <option value="Missing Person">Missing Person</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+
+      <table id="cases-table">
+        <thead>
+          <tr>
+            <th>Case #</th>
+            <th>Type</th>
+            <th>Title</th>
+            <th>Assigned Det.</th>
+            <th>Status</th>
+            <th>Opened</th>
+            <th>Reports</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="cases-tbody"></tbody>
+      </table>
+      <p id="no-cases-msg" class="no-data-msg" style="display:none;">No cases found. Create a new case to get started.</p>
+    </section>
+
+    <!-- Case Detail View -->
+    <section id="view-detail" style="display:none;">
+      <div class="detail-header">
+        <button id="btn-back" class="btn btn-ghost">← Back to Cases</button>
+        <div class="detail-title-group">
+          <h2 id="detail-case-number"></h2>
+          <span id="detail-status-badge" class="status-badge"></span>
+        </div>
+        <div class="detail-actions">
+          <button id="btn-edit-case" class="btn btn-secondary">Edit Case</button>
+          <button id="btn-delete-case" class="btn btn-danger">Delete Case</button>
+        </div>
+      </div>
+
+      <div class="detail-grid">
+        <!-- Left column -->
+        <div class="detail-left">
+          <div class="card">
+            <h3>Case Information</h3>
+            <div class="info-grid" id="detail-info-grid"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-header-row">
+              <h3>Case Notes</h3>
+              <button id="btn-add-note" class="btn btn-sm btn-primary">+ Add Note</button>
+            </div>
+            <div id="notes-list"></div>
+            <p id="no-notes-msg" class="no-data-msg">No notes yet.</p>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div class="detail-right">
+          <div class="card">
+            <div class="card-header-row">
+              <h3>Reports</h3>
+              <button id="btn-add-report" class="btn btn-sm btn-primary">+ Add Report</button>
+            </div>
+            <div id="reports-list"></div>
+            <p id="no-reports-msg" class="no-data-msg">No reports filed.</p>
+          </div>
+
+          <div class="card">
+            <div class="card-header-row">
+              <h3>Persons of Interest</h3>
+              <button id="btn-add-person" class="btn btn-sm btn-primary">+ Add Person</button>
+            </div>
+            <div class="poi-tabs">
+              <button class="poi-tab active" data-role="Suspect">Suspects</button>
+              <button class="poi-tab" data-role="Witness">Witnesses</button>
+              <button class="poi-tab" data-role="Victim">Victims</button>
+            </div>
+            <div id="persons-list"></div>
+            <p id="no-persons-msg" class="no-data-msg">None added.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Overlay -->
+  <div id="modal-overlay" class="modal-overlay" style="display:none;">
+    <div class="modal" id="modal-box">
+      <div class="modal-header">
+        <h3 id="modal-title">Modal</h3>
+        <button id="modal-close" class="btn-close">✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
