@@ -46,7 +46,7 @@ header {
   margin: 0 auto;
   height: 64px;
 }
-.badge-icon { font-size: 28px; }
+.badge-icon { height: 44px; width: auto; object-fit: contain; }
 .header-inner h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
 .subtitle { color: var(--text-muted); font-size: 12px; }
 .header-inner > button { margin-left: auto; }
