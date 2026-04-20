@@ -88,26 +88,40 @@ main {
   gap: 12px;
   margin-bottom: 16px;
 }
-.toolbar select {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  background-image: none;
-  color-scheme: dark;
-}
-.toolbar input, .toolbar select {
+.toolbar input, .select-wrap {
   background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+.toolbar input {
+  flex: 1;
+  padding: 8px 12px;
+  outline: none;
+}
+.toolbar input:focus { border-color: var(--accent); }
+.select-wrap {
+  position: relative;
+  overflow: hidden;
+}
+.select-wrap:focus-within { border-color: var(--accent); }
+.select-wrap select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background: transparent;
+  border: none;
+  color: var(--text);
   padding: 8px 12px;
   font-size: 14px;
   outline: none;
-  transition: border-color 0.2s;
+  cursor: pointer;
+  width: 100%;
+  display: block;
 }
-.toolbar input { flex: 1; }
-.toolbar input:focus, .toolbar select:focus { border-color: var(--accent); }
-.toolbar select option { background: var(--bg2); }
+.select-wrap select option { background: var(--bg2); }
 
 /* TABLE */
 table {

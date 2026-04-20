@@ -43,25 +43,29 @@
 
       <div class="toolbar">
         <input type="text" id="search-input" placeholder="Search cases, suspects, detectives..." />
-        <select id="filter-status">
-          <option value="">All Statuses</option>
-          <option value="Open">Open</option>
-          <option value="Active">Active</option>
-          <option value="Pending">Pending</option>
-          <option value="Closed">Closed</option>
-          <option value="Cold">Cold</option>
-        </select>
-        <select id="filter-type">
-          <option value="">All Types</option>
-          <option value="Homicide">Homicide</option>
-          <option value="Robbery">Robbery</option>
-          <option value="Assault">Assault</option>
-          <option value="Narcotics">Narcotics</option>
-          <option value="Gang Activity">Gang Activity</option>
-          <option value="Fraud">Fraud</option>
-          <option value="Missing Person">Missing Person</option>
-          <option value="Other">Other</option>
-        </select>
+        <div class="select-wrap">
+          <select id="filter-status">
+            <option value="">All Statuses</option>
+            <option value="Open">Open</option>
+            <option value="Active">Active</option>
+            <option value="Pending">Pending</option>
+            <option value="Closed">Closed</option>
+            <option value="Cold">Cold</option>
+          </select>
+        </div>
+        <div class="select-wrap">
+          <select id="filter-type">
+            <option value="">All Types</option>
+            <option value="Homicide">Homicide</option>
+            <option value="Robbery">Robbery</option>
+            <option value="Assault">Assault</option>
+            <option value="Narcotics">Narcotics</option>
+            <option value="Gang Activity">Gang Activity</option>
+            <option value="Fraud">Fraud</option>
+            <option value="Missing Person">Missing Person</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
       </div>
 
       <table id="cases-table">
