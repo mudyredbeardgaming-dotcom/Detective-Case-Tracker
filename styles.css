@@ -1,3 +1,4 @@
+:root, html { color-scheme: dark; }
 :root {
   --bg: #0d0f14;
   --bg2: #13161e;
@@ -91,6 +92,8 @@ main {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
+  background-image: none;
+  color-scheme: dark;
 }
 .toolbar input, .toolbar select {
   background: var(--bg2);
