@@ -87,6 +87,11 @@ main {
   gap: 12px;
   margin-bottom: 16px;
 }
+.toolbar select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
 .toolbar input, .toolbar select {
   background: var(--bg2);
   border: 1px solid var(--border);
