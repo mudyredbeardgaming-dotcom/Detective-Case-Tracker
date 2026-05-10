@@ -14,16 +14,51 @@ let currentCaseId = null;
 let activePoiRole = 'Suspect';
 let modalConfirmCallback = null;
 
+// ─── Case Types ───────────────────────────────────────────────────────────────
+
+const CASE_TYPES = [
+  { label: 'ARSON',               code: 'A' },
+  { label: 'GANG-RELATED CRIMES', code: 'G' },
+  { label: 'NARCOTICS',           code: 'N' },
+  { label: 'HOMICIDE',            code: 'H' },
+  { label: 'KIDNAPPING',          code: 'K' },
+  { label: 'DOMESTIC/ABUSE',      code: 'D' },
+  { label: 'HIGH-LEVEL ROBBERY',  code: 'R' },
+  { label: 'OTHER INVESTIGATIONS',code: 'O' },
+  { label: 'INTERNAL AFFAIRS',    code: 'I' },
+];
+
+const COUNTERS_KEY = 'cid_case_counters';
+
+function loadCounters() {
+  try { return JSON.parse(localStorage.getItem(COUNTERS_KEY)) || {}; } catch { return {}; }
+}
+
+function peekCaseNumber(code) {
+  const counters = loadCounters();
+  return `${code}-${(counters[code] || 999) + 1}`;
+}
+
+function claimCaseNumber(code) {
+  const counters = loadCounters();
+  const next = (counters[code] || 999) + 1;
+  counters[code] = next;
+  localStorage.setItem(COUNTERS_KEY, JSON.stringify(counters));
+  return `${code}-${next}`;
+}
+
+function updateCaseNumberPreview() {
+  const typeEl = document.getElementById('f-type');
+  const numEl  = document.getElementById('f-caseNumber');
+  if (!typeEl || !numEl) return;
+  const typeObj = CASE_TYPES.find(t => t.label === typeEl.value);
+  numEl.value = typeObj ? peekCaseNumber(typeObj.code) : '';
+}
+
 // ─── Utility ─────────────────────────────────────────────────────────────────
 
 function genId() {
   return Math.random().toString(36).slice(2, 10).toUpperCase();
-}
-
-function genCaseNumber() {
-  const year = new Date().getFullYear();
-  const seq = String(cases.length + 1).padStart(4, '0');
-  return `LAPD-${year}-${seq}`;
 }
 
 function fmtDate(iso) {
@@ -242,10 +277,18 @@ function showCaseModal(existing) {
   const c = existing || {};
 
   showModal(isEdit ? 'Edit Case' : 'New Case', `
+    <div class="form-group">
+      <label class="field-label">Case Type</label>
+      <select id="f-type">
+        ${isEdit ? '' : '<option value="">— Select Case Type —</option>'}
+        ${CASE_TYPES.map(t =>
+          `<option value="${t.label}" ${c.type===t.label?'selected':''}>${t.label}</option>`).join('')}
+      </select>
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="field-label">Case Number</label>
-        <input type="text" id="f-caseNumber" value="${escHtml(c.caseNumber || genCaseNumber())}" placeholder="LAPD-2026-0001" />
+        <input type="text" id="f-caseNumber" value="${escHtml(c.caseNumber||'')}" readonly class="input-readonly" placeholder="Select case type first" />
       </div>
       <div class="form-group">
         <label class="field-label">Status</label>
@@ -261,37 +304,30 @@ function showCaseModal(existing) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="field-label">Case Type</label>
-        <select id="f-type">
-          ${['Homicide','Robbery','Assault','Narcotics','Gang Activity','Fraud','Missing Person','Other'].map(t =>
-            `<option value="${t}" ${c.type===t?'selected':''}>${t}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group">
         <label class="field-label">Priority</label>
         <select id="f-priority">
           ${['Critical','High','Medium','Low'].map(p =>
             `<option value="${p}" ${c.priority===p?'selected':''}>${p}</option>`).join('')}
         </select>
       </div>
-    </div>
-    <div class="form-row">
       <div class="form-group">
         <label class="field-label">Assigned Detective</label>
         <input type="text" id="f-detective" value="${escHtml(c.detective||'')}" placeholder="Det. Last Name" />
       </div>
+    </div>
+    <div class="form-row">
       <div class="form-group">
         <label class="field-label">Badge Number</label>
         <input type="text" id="f-badge" value="${escHtml(c.badge||'')}" placeholder="#0000" />
+      </div>
+      <div class="form-group">
+        <label class="field-label">Date Opened</label>
+        <input type="date" id="f-openedAt" value="${c.openedAt ? c.openedAt.substring(0,10) : new Date().toISOString().substring(0,10)}" />
       </div>
     </div>
     <div class="form-group">
       <label class="field-label">Incident Location</label>
       <input type="text" id="f-location" value="${escHtml(c.location||'')}" placeholder="e.g. 300 N Main St, Los Santos" />
-    </div>
-    <div class="form-group">
-      <label class="field-label">Date Opened</label>
-      <input type="date" id="f-openedAt" value="${c.openedAt ? c.openedAt.substring(0,10) : new Date().toISOString().substring(0,10)}" />
     </div>
     <div class="form-group">
       <label class="field-label">Case Summary</label>
@@ -301,22 +337,26 @@ function showCaseModal(existing) {
       <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveCase(${isEdit ? `'${c.id}'` : 'null'})">${isEdit ? 'Save Changes' : 'Create Case'}</button>
     </div>`);
+
+  if (!isEdit) {
+    document.getElementById('f-type').addEventListener('change', updateCaseNumberPreview);
+  }
 }
 
 function saveCase(editId) {
-  const caseNumber = document.getElementById('f-caseNumber').value.trim();
-  const title = document.getElementById('f-title').value.trim();
-  if (!caseNumber || !title) { alert('Case Number and Title are required.'); return; }
+  const typeLabel = document.getElementById('f-type').value;
+  const title     = document.getElementById('f-title').value.trim();
+  if (!typeLabel) { alert('Please select a case type.'); return; }
+  if (!title)     { alert('Case title is required.'); return; }
 
   const now = new Date().toISOString();
 
   if (editId) {
     const c = getCaseById(editId);
     Object.assign(c, {
-      caseNumber,
       title,
+      type: typeLabel,
       status: document.getElementById('f-status').value,
-      type: document.getElementById('f-type').value,
       priority: document.getElementById('f-priority').value,
       detective: document.getElementById('f-detective').value.trim(),
       badge: document.getElementById('f-badge').value.trim(),
@@ -330,12 +370,14 @@ function saveCase(editId) {
     closeModal();
     renderDetail();
   } else {
+    const typeObj  = CASE_TYPES.find(t => t.label === typeLabel);
+    const caseNumber = claimCaseNumber(typeObj.code);
     const newCase = {
       id: genId(),
       caseNumber,
       title,
+      type: typeLabel,
       status: document.getElementById('f-status').value,
-      type: document.getElementById('f-type').value,
       priority: document.getElementById('f-priority').value,
       detective: document.getElementById('f-detective').value.trim(),
       badge: document.getElementById('f-badge').value.trim(),
