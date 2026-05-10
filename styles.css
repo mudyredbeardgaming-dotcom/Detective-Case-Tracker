@@ -50,7 +50,7 @@ header {
 .badge-icon { height: 44px; width: auto; object-fit: contain; }
 .header-inner h1 { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
 .subtitle { color: var(--text-muted); font-size: 12px; }
-.header-inner > button { margin-left: auto; }
+.header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 
 /* MAIN */
 main {
@@ -393,3 +393,116 @@ select option { background: var(--bg2); }
   .stats-row { grid-template-columns: 1fr 1fr; }
   header { padding: 0 12px; }
 }
+
+/* ─── LOGIN SCREEN ───────────────────────────────────────────────────────────── */
+#login-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 20px;
+}
+.login-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 40px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.login-logo { height: 80px; width: auto; margin-bottom: 16px; }
+.login-box h2 { font-size: 20px; margin-bottom: 4px; }
+.login-subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 24px; }
+.login-box .form-group { text-align: left; }
+.login-notice {
+  background: rgba(30,111,255,0.1);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--text);
+  margin-bottom: 20px;
+  text-align: left;
+}
+.login-error {
+  color: var(--danger);
+  font-size: 13px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: rgba(214,58,58,0.1);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  text-align: left;
+}
+
+/* ─── USER CHIP (HEADER) ─────────────────────────────────────────────────────── */
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 4px 12px 4px 4px;
+}
+.user-initials {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+.user-chip-info { display: flex; flex-direction: column; gap: 1px; }
+.user-chip-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.user-chip-role { font-size: 11px; color: var(--text-muted); }
+
+/* ─── ROLE BADGES ────────────────────────────────────────────────────────────── */
+.role-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.role-Det-I    { background: rgba(102,153,255,0.15); color: #6699ff;        border: 1px solid #6699ff; }
+.role-Det-II   { background: rgba(40,168,100,0.15);  color: var(--open);    border: 1px solid var(--open); }
+.role-Det-III  { background: rgba(224,155,26,0.15);  color: var(--warning); border: 1px solid var(--warning); }
+.role-Command  { background: rgba(214,58,58,0.15);   color: #ff7070;        border: 1px solid #ff7070; }
+
+/* ─── ADMIN PANEL ────────────────────────────────────────────────────────────── */
+.admin-card { max-width: 960px; }
+.user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.user-item-left { flex: 1; min-width: 200px; }
+.user-item-name { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.user-item-discord { font-size: 12px; color: var(--text-muted); font-family: monospace; }
+.user-item-badge { font-size: 12px; color: var(--text-muted); }
+.user-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.user-item-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.self-tag { font-size: 11px; color: var(--text-muted); font-style: italic; }
