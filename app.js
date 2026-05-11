@@ -911,30 +911,36 @@ function switchAdminTab(tab) {
 }
 
 async function renderAdminDetectives() {
-  const { data: users } = await db.from('profiles')
-    .select('*').eq('approved', true).order('discord_username');
   const list = document.getElementById('users-list');
   const msg  = document.getElementById('no-users-msg');
-  if (!users?.length) { list.innerHTML = ''; msg.style.display = ''; return; }
-  msg.style.display = 'none';
-  const roleClass = r => 'role-' + r.replace(' ', '-');
-  list.innerHTML = users.map(u => `
-    <div class="user-item">
-      <div class="user-item-left">
-        <div class="user-item-name">${escHtml(detName(u))}</div>
-        ${u.display_name ? `<div class="user-item-discord">Discord: ${escHtml(u.discord_username)}</div>` : ''}
-        <div class="user-item-discord">Discord ID: ${escHtml(u.discord_id || '—')}</div>
-        ${u.badge ? `<div class="user-item-badge">Badge: #${escHtml(u.badge)}</div>` : ''}
-        <div class="user-item-meta">Added ${fmtDate(u.created_at)}</div>
-      </div>
-      <div class="user-item-right">
-        <span class="role-badge ${roleClass(u.role)}">${escHtml(u.role)}</span>
-        <button class="btn btn-sm btn-secondary" onclick="showEditUserModal('${u.id}')">Edit</button>
-        ${u.id !== currentUser.id
-          ? `<button class="btn btn-sm btn-danger" onclick="revokeUser('${u.id}')">Revoke</button>`
-          : `<span class="self-tag">(you)</span>`}
-      </div>
-    </div>`).join('');
+  try {
+    const { data: users, error } = await db.from('profiles')
+      .select('*').eq('approved', true).order('discord_username');
+    if (error) throw error;
+    if (!users?.length) { list.innerHTML = ''; msg.style.display = ''; return; }
+    msg.style.display = 'none';
+    const roleClass = r => 'role-' + r.replace(' ', '-');
+    list.innerHTML = users.map(u => `
+      <div class="user-item">
+        <div class="user-item-left">
+          <div class="user-item-name">${escHtml(detName(u))}</div>
+          ${u.display_name ? `<div class="user-item-discord">Discord: ${escHtml(u.discord_username)}</div>` : ''}
+          <div class="user-item-discord">Discord ID: ${escHtml(u.discord_id || '—')}</div>
+          ${u.badge ? `<div class="user-item-badge">Badge: #${escHtml(u.badge)}</div>` : ''}
+          <div class="user-item-meta">Added ${fmtDate(u.created_at)}</div>
+        </div>
+        <div class="user-item-right">
+          <span class="role-badge ${roleClass(u.role)}">${escHtml(u.role)}</span>
+          <button class="btn btn-sm btn-secondary" onclick="showEditUserModal('${u.id}')">Edit</button>
+          ${u.id !== currentUser?.id
+            ? `<button class="btn btn-sm btn-danger" onclick="revokeUser('${u.id}')">Revoke</button>`
+            : `<span class="self-tag">(you)</span>`}
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    console.error('renderAdminDetectives:', err);
+    list.innerHTML = `<p style="color:#f85149;padding:12px 0;">Error loading detectives: ${escHtml(err.message)}</p>`;
+  }
 }
 
 async function renderPendingUsers() {
