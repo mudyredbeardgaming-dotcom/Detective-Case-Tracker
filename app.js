@@ -644,7 +644,8 @@ async function saveCase(editId) {
 // ─── Note Modal ───────────────────────────────────────────────────────────────
 
 function showNoteModal() {
-  showModal('Add Detective Note', `
+  showModal('Add Case Note', `
+    <div id="note-success" style="display:none;color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px;"></div>
     <div class="form-group">
       <label class="field-label">Detective Name</label>
       <input type="text" id="n-detective" value="${escHtml(detName(currentProfile))}" />
@@ -661,7 +662,7 @@ function showNoteModal() {
       <textarea id="n-text" placeholder="Enter your case note, findings, or status update..." style="min-height:120px;"></textarea>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Done</button>
       <button class="btn btn-primary" onclick="saveNote()">Add Note</button>
     </div>`);
 }
@@ -670,24 +671,27 @@ async function saveNote() {
   const detective    = document.getElementById('n-detective').value.trim();
   const text         = document.getElementById('n-text').value.trim();
   if (!text) { alert('Note text is required.'); return; }
-
-  const c            = getCaseById(currentCaseId);
-  const statusUpdate = document.getElementById('n-statusUpdate').value;
-  const now          = new Date().toISOString();
-
-  const notes = [...(c.notes || []), { id: genId(), detective, text, statusUpdate, createdAt: now }];
-  const updates = { notes, updated_at: now };
-  if (statusUpdate) {
-    updates.status = statusUpdate;
-    if (statusUpdate === 'Closed') updates.closed_at = c.closed_at || now;
-  }
-
-  const { data, error } = await db.from('cases').update(updates).eq('id', currentCaseId).select().single();
-  if (error) { alert('Error saving note: ' + error.message); return; }
-  const idx = cases.findIndex(x => x.id === currentCaseId);
-  if (idx !== -1) cases[idx] = data;
-  closeModal();
-  renderDetail();
+  try {
+    const c            = getCaseById(currentCaseId);
+    const statusUpdate = document.getElementById('n-statusUpdate').value;
+    const now          = new Date().toISOString();
+    const notes   = [...(c.notes || []), { id: genId(), detective, text, statusUpdate, createdAt: now }];
+    const updates = { notes, updated_at: now };
+    if (statusUpdate) {
+      updates.status = statusUpdate;
+      if (statusUpdate === 'Closed') updates.closed_at = c.closed_at || now;
+    }
+    const { data, error } = await db.from('cases').update(updates).eq('id', currentCaseId).select().single();
+    if (error) { alert('Error saving note: ' + error.message); return; }
+    const idx = cases.findIndex(x => x.id === currentCaseId);
+    if (idx !== -1) cases[idx] = data;
+    renderDetail();
+    document.getElementById('n-text').value         = '';
+    document.getElementById('n-statusUpdate').value = '';
+    const s = document.getElementById('note-success');
+    if (s) { s.textContent = '✓ Note added'; s.style.display = ''; setTimeout(() => { if (s) s.style.display = 'none'; }, 3000); }
+    document.getElementById('n-text').focus();
+  } catch (err) { console.error('saveNote:', err); alert('Error: ' + err.message); }
 }
 
 async function deleteNote(noteId) {
@@ -705,12 +709,13 @@ async function deleteNote(noteId) {
 
 function showReportModal() {
   const c         = getCaseById(currentCaseId);
-  const reportNum = `RPT-${c.case_number}-${String((c.reports || []).length + 1).padStart(3, '0')}`;
+  const reportNum = () => `RPT-${c.case_number}-${String((getCaseById(currentCaseId)?.reports || []).length + 1).padStart(3, '0')}`;
   showModal('File Report', `
+    <div id="report-success" style="display:none;color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px;"></div>
     <div class="form-row">
       <div class="form-group">
         <label class="field-label">Report ID</label>
-        <input type="text" id="r-reportId" value="${escHtml(reportNum)}" />
+        <input type="text" id="r-reportId" value="${escHtml(reportNum())}" />
       </div>
       <div class="form-group">
         <label class="field-label">Report Type</label>
@@ -729,7 +734,7 @@ function showReportModal() {
       <textarea id="r-content" placeholder="Enter report details, findings, statements..." style="min-height:150px;"></textarea>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Done</button>
       <button class="btn btn-primary" onclick="saveReport()">File Report</button>
     </div>`);
 }
@@ -738,22 +743,28 @@ async function saveReport() {
   const reportId = document.getElementById('r-reportId').value.trim();
   const content  = document.getElementById('r-content').value.trim();
   if (!reportId || !content) { alert('Report ID and content are required.'); return; }
-
-  const c       = getCaseById(currentCaseId);
-  const now     = new Date().toISOString();
-  const reports = [...(c.reports || []), {
-    id: genId(), reportId,
-    type:    document.getElementById('r-type').value,
-    filedBy: document.getElementById('r-filedBy').value.trim(),
-    content, createdAt: now,
-  }];
-
-  const { data, error } = await db.from('cases').update({ reports, updated_at: now }).eq('id', currentCaseId).select().single();
-  if (error) { alert('Error: ' + error.message); return; }
-  const idx = cases.findIndex(x => x.id === currentCaseId);
-  if (idx !== -1) cases[idx] = data;
-  closeModal();
-  renderDetail();
+  try {
+    const c       = getCaseById(currentCaseId);
+    const now     = new Date().toISOString();
+    const reports = [...(c.reports || []), {
+      id: genId(), reportId,
+      type:    document.getElementById('r-type').value,
+      filedBy: document.getElementById('r-filedBy').value.trim(),
+      content, createdAt: now,
+    }];
+    const { data, error } = await db.from('cases').update({ reports, updated_at: now }).eq('id', currentCaseId).select().single();
+    if (error) { alert('Error: ' + error.message); return; }
+    const idx = cases.findIndex(x => x.id === currentCaseId);
+    if (idx !== -1) cases[idx] = data;
+    renderDetail();
+    const nextId = `RPT-${data.case_number}-${String(data.reports.length + 1).padStart(3, '0')}`;
+    document.getElementById('r-reportId').value = nextId;
+    document.getElementById('r-content').value  = '';
+    document.getElementById('r-type').value     = 'Initial Report';
+    const s = document.getElementById('report-success');
+    if (s) { s.textContent = `✓ ${reportId} filed`; s.style.display = ''; setTimeout(() => { if (s) s.style.display = 'none'; }, 3000); }
+    document.getElementById('r-content').focus();
+  } catch (err) { console.error('saveReport:', err); alert('Error: ' + err.message); }
 }
 
 async function deleteReport(reportId) {
@@ -771,6 +782,7 @@ async function deleteReport(reportId) {
 
 function showPersonModal() {
   showModal('Add Person of Interest', `
+    <div id="person-success" style="display:none;color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px;"></div>
     <div class="form-row">
       <div class="form-group">
         <label class="field-label">Full Name</label>
@@ -811,10 +823,10 @@ function showPersonModal() {
     </div>
     <div class="form-group" id="p-spokenby-group" style="display:none;">
       <label class="field-label">Interviewed By</label>
-      <input type="text" id="p-spokenBy" value="${escHtml(currentProfile?.discord_username || '')}" />
+      <input type="text" id="p-spokenBy" value="${escHtml(detName(currentProfile))}" />
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Done</button>
       <button class="btn btn-primary" onclick="savePerson()">Add Person</button>
     </div>`);
 
@@ -826,26 +838,35 @@ function showPersonModal() {
 async function savePerson() {
   const name = document.getElementById('p-name').value.trim();
   if (!name) { alert('Name is required.'); return; }
-
-  const c       = getCaseById(currentCaseId);
-  const spoken  = document.getElementById('p-spoken').checked;
-  const persons = [...(c.persons || []), {
-    id: genId(), name,
-    role:        document.getElementById('p-role').value,
-    dob:         document.getElementById('p-dob').value.trim(),
-    phone:       document.getElementById('p-phone').value.trim(),
-    address:     document.getElementById('p-address').value.trim(),
-    description: document.getElementById('p-description').value.trim(),
-    spoken, spokenBy: spoken ? document.getElementById('p-spokenBy').value.trim() : '',
-  }];
-  activePoiRole = document.getElementById('p-role').value;
-
-  const { data, error } = await db.from('cases').update({ persons, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single();
-  if (error) { alert('Error: ' + error.message); return; }
-  const idx = cases.findIndex(x => x.id === currentCaseId);
-  if (idx !== -1) cases[idx] = data;
-  closeModal();
-  renderDetail();
+  try {
+    const c       = getCaseById(currentCaseId);
+    const spoken  = document.getElementById('p-spoken').checked;
+    const role    = document.getElementById('p-role').value;
+    const persons = [...(c.persons || []), {
+      id: genId(), name, role,
+      dob:         document.getElementById('p-dob').value.trim(),
+      phone:       document.getElementById('p-phone').value.trim(),
+      address:     document.getElementById('p-address').value.trim(),
+      description: document.getElementById('p-description').value.trim(),
+      spoken, spokenBy: spoken ? document.getElementById('p-spokenBy').value.trim() : '',
+    }];
+    activePoiRole = role;
+    const { data, error } = await db.from('cases').update({ persons, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single();
+    if (error) { alert('Error: ' + error.message); return; }
+    const idx = cases.findIndex(x => x.id === currentCaseId);
+    if (idx !== -1) cases[idx] = data;
+    renderDetail();
+    document.getElementById('p-name').value        = '';
+    document.getElementById('p-dob').value         = '';
+    document.getElementById('p-phone').value       = '';
+    document.getElementById('p-address').value     = '';
+    document.getElementById('p-description').value = '';
+    document.getElementById('p-spoken').checked    = false;
+    document.getElementById('p-spokenby-group').style.display = 'none';
+    const s = document.getElementById('person-success');
+    if (s) { s.textContent = `✓ ${name} added`; s.style.display = ''; setTimeout(() => { if (s) s.style.display = 'none'; }, 3000); }
+    document.getElementById('p-name').focus();
+  } catch (err) { console.error('savePerson:', err); alert('Error: ' + err.message); }
 }
 
 async function deletePerson(personId) {
