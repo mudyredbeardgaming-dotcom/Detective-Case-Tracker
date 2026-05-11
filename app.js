@@ -435,14 +435,20 @@ async function buildDetectiveField(c, isEdit) {
     return '';
   }
 
-  const { data: dets } = await db.from('profiles')
-    .select('id, discord_username, display_name, role, badge')
-    .in('role', ['Det I', 'Det II', 'Det III', 'Command'])
-    .eq('approved', true)
-    .order('discord_username');
+  let dets = [];
+  try {
+    const { data } = await db.from('profiles')
+      .select('id, discord_username, display_name, role, badge')
+      .in('role', ['Det I', 'Det II', 'Det III', 'Command'])
+      .eq('approved', true)
+      .order('discord_username');
+    dets = data || [];
+  } catch (err) {
+    console.error('Could not load detective list:', err);
+  }
 
-  const options = dets && dets.length
-    ? (dets).map(u => {
+  const options = dets.length
+    ? dets.map(u => {
         const name  = detName(u);
         const sel   = isEdit && c.detective === name ? 'selected' : '';
         const label = `${name} · ${u.role}${u.badge ? ' · #' + u.badge : ''}`;
@@ -468,7 +474,12 @@ async function buildDetectiveField(c, isEdit) {
 async function showCaseModal(existing) {
   const isEdit = !!existing;
   const c      = existing || {};
-  const detField = await buildDetectiveField(c, isEdit);
+  let detField = '';
+  try {
+    detField = await buildDetectiveField(c, isEdit);
+  } catch (err) {
+    console.error('buildDetectiveField error:', err);
+  }
 
   showModal(isEdit ? 'Edit Case' : 'New Case', `
     <div class="form-group">
