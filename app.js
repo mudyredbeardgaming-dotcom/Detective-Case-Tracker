@@ -18,7 +18,7 @@ const CASE_TYPES = [
   { label: 'DOMESTIC/ABUSE',       code: 'D' },
   { label: 'HIGH-LEVEL ROBBERY',   code: 'R' },
   { label: 'OTHER INVESTIGATIONS', code: 'O' },
-  { label: 'INTERNAL AFFAIRS',     code: 'I' },
+  { label: 'INTERNAL AFFAIRS',     code: 'IA' },
 ];
 
 // ─── App State ────────────────────────────────────────────────────────────────
@@ -77,7 +77,15 @@ function showView(name) {
 db.auth.onAuthStateChange(async (event, session) => {
   if (session?.user) {
     currentUser = session.user;
-    await handleUserSession();
+    try {
+      await handleUserSession();
+    } catch (err) {
+      console.error('Session error:', err);
+      const errEl = document.getElementById('login-error');
+      errEl.textContent   = 'Login error: ' + (err.message || 'Unknown error — check browser console (F12).');
+      errEl.style.display = '';
+      showScreen('login');
+    }
   } else {
     currentUser    = null;
     currentProfile = null;
@@ -88,35 +96,46 @@ db.auth.onAuthStateChange(async (event, session) => {
 
 async function handleUserSession() {
   // Load this user's profile
-  let { data: profile } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+  const { data: profile, error: profileErr } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
 
-  if (!profile) {
+  if (profileErr && profileErr.code !== 'PGRST116') {
+    // PGRST116 = no rows found (expected for new users); anything else is a real error
+    throw new Error('Profile lookup failed: ' + profileErr.message + ' (code: ' + profileErr.code + '). Make sure you have run schema.sql in Supabase.');
+  }
+
+  let resolvedProfile = profile;
+
+  if (!resolvedProfile) {
     // Trigger should have created it — create manually as fallback
     const discordName = currentUser.user_metadata?.full_name
       || currentUser.user_metadata?.name
       || 'Unknown';
     const discordId = currentUser.user_metadata?.provider_id || '';
-    await db.from('profiles').upsert({
+    const { error: upsertErr } = await db.from('profiles').upsert({
       id: currentUser.id, discord_username: discordName,
       discord_id: discordId, role: 'pending', approved: false, added_by: 'discord',
     });
-    const { data: fresh } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
-    profile = fresh;
+    if (upsertErr) throw new Error('Profile creation failed: ' + upsertErr.message);
+    const { data: fresh, error: freshErr } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+    if (freshErr) throw new Error('Profile refetch failed: ' + freshErr.message);
+    resolvedProfile = fresh;
   }
 
   // Auto-approve first Discord user ever as Command
-  if (profile && !profile.approved) {
+  if (resolvedProfile && !resolvedProfile.approved) {
     const { count } = await db.from('profiles')
       .select('id', { count: 'exact', head: true })
       .eq('approved', true);
     if (count === 0) {
-      await db.from('profiles').update({ approved: true, role: 'Command' }).eq('id', currentUser.id);
-      profile.approved = true;
-      profile.role     = 'Command';
+      const { error: approveErr } = await db.from('profiles')
+        .update({ approved: true, role: 'Command' }).eq('id', currentUser.id);
+      if (approveErr) throw new Error('Auto-approve failed: ' + approveErr.message);
+      resolvedProfile.approved = true;
+      resolvedProfile.role     = 'Command';
     }
   }
 
-  currentProfile = profile;
+  currentProfile = resolvedProfile;
 
   if (currentProfile?.approved) {
     await enterApp();
