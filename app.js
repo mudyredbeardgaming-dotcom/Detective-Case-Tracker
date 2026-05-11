@@ -77,14 +77,33 @@ function showScreen(name) {
   document.getElementById('app-body').style.display       = name === 'app'     ? ''     : 'none';
 }
 
-// Safety net — if loading screen is still up after 8 seconds, fall back to login
+// After 6s still loading: database is waking up from pause — let the user know
+setTimeout(() => {
+  const ls = document.getElementById('loading-screen');
+  if (ls && ls.style.display !== 'none') {
+    document.getElementById('loading-msg').textContent = 'Waking up database...';
+  }
+}, 6000);
+
+// After 20s still loading: database is waking up from pause — let the user know
+setTimeout(() => {
+  const ls = document.getElementById('loading-screen');
+  if (ls && ls.style.display !== 'none') {
+    document.getElementById('loading-msg').textContent = 'Almost there...';
+  }
+}, 20000);
+
+// Safety net — fall back to login after 35 seconds
 setTimeout(() => {
   const ls = document.getElementById('loading-screen');
   if (ls && ls.style.display !== 'none') {
     console.warn('[CID] Auth timed out — falling back to login');
     showScreen('login');
+    const errEl = document.getElementById('login-error');
+    errEl.textContent   = 'Connection timed out. Please try logging in again.';
+    errEl.style.display = '';
   }
-}, 8000);
+}, 35000);
 
 function showView(name) {
   ['view-dashboard', 'view-detail', 'view-admin'].forEach(id => {
