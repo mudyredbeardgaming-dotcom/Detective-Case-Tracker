@@ -75,12 +75,13 @@ function showView(name) {
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 db.auth.onAuthStateChange(async (event, session) => {
+  console.log('[CID Auth]', event, session ? 'HAS SESSION' : 'NO SESSION', session?.user?.id ?? '');
   if (session?.user) {
     currentUser = session.user;
     try {
       await handleUserSession();
     } catch (err) {
-      console.error('Session error:', err);
+      console.error('[CID Auth] handleUserSession error:', err);
       const errEl = document.getElementById('login-error');
       errEl.textContent   = 'Login error: ' + (err.message || 'Unknown error — check browser console (F12).');
       errEl.style.display = '';
