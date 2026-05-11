@@ -506,3 +506,89 @@ select option { background: var(--bg2); }
 .user-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 .user-item-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .self-tag { font-size: 11px; color: var(--text-muted); font-style: italic; }
+
+/* ─── DISCORD LOGIN BUTTON ───────────────────────────────────────────────────── */
+.btn-discord {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 20px;
+  background: #5865F2;
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  margin-top: 8px;
+}
+.btn-discord:hover { background: #4752c4; }
+
+/* ─── PENDING SCREEN ─────────────────────────────────────────────────────────── */
+#pending-screen {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 20px;
+}
+
+/* ─── ADMIN TABS ─────────────────────────────────────────────────────────────── */
+.admin-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.admin-tab {
+  padding: 8px 18px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.admin-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.admin-tab:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+.pending-badge {
+  background: var(--danger);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+}
+
+/* ─── APPROVE PENDING USERS ──────────────────────────────────────────────────── */
+.approve-role-sel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 13px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.approve-badge-inp {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 13px;
+  outline: none;
+  width: 80px;
+}

@@ -15,23 +15,27 @@
       <img src="CID Logo.png" class="login-logo" alt="CID" />
       <h2>Criminal Investigation Division</h2>
       <p class="login-subtitle">Los Santos Role Play · Case Management</p>
-      <div id="login-setup-notice" class="login-notice" style="display:none;">
-        <strong>First Run Setup</strong> — No users found. Create the initial Command account to get started.
-      </div>
-      <div class="form-group">
-        <label class="field-label">Discord Username</label>
-        <input type="text" id="l-username" placeholder="e.g. mudyr" autocomplete="off" />
-      </div>
-      <div class="form-group">
-        <label class="field-label">Discord ID</label>
-        <input type="text" id="l-discordId" placeholder="e.g. 123456789012345678" autocomplete="off" />
-      </div>
-      <div id="l-badge-group" class="form-group" style="display:none;">
-        <label class="field-label">Badge Number</label>
-        <input type="text" id="l-badge" placeholder="#0000" />
-      </div>
-      <button class="btn btn-primary" id="btn-login-submit" style="width:100%;margin-top:8px;">Sign In</button>
+      <button id="btn-discord-login" class="btn-discord">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057c.002.022.015.043.03.056a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+        </svg>
+        Login with Discord
+      </button>
       <div id="login-error" class="login-error" style="display:none;"></div>
+    </div>
+  </div>
+
+  <!-- ─── Pending Approval Screen ───────────────────────────────────────────── -->
+  <div id="pending-screen" style="display:none;">
+    <div class="login-box">
+      <img src="CID Logo.png" class="login-logo" alt="CID" />
+      <h2>Awaiting Approval</h2>
+      <p class="login-subtitle">Criminal Investigation Division</p>
+      <div class="login-notice" style="text-align:left;">
+        Your Discord account has been registered. A <strong>Det III</strong> or <strong>Command</strong> officer must approve your access and assign your role before you can enter the system.
+      </div>
+      <p style="color:var(--text-muted);font-size:12px;margin:12px 0;">Contact your supervisor on Discord to request access.</p>
+      <button id="btn-pending-logout" class="btn btn-ghost" style="width:100%;margin-top:4px;">Sign Out</button>
     </div>
   </div>
 
@@ -142,7 +146,6 @@
             <button id="btn-delete-case" class="btn btn-danger">Delete Case</button>
           </div>
         </div>
-
         <div class="detail-grid">
           <div class="detail-left">
             <div class="card">
@@ -190,7 +193,11 @@
           <button id="btn-admin-back" class="btn btn-ghost">← Back to Cases</button>
           <h2>Admin Panel</h2>
         </div>
-        <div class="card admin-card">
+        <div class="admin-tabs">
+          <button class="admin-tab active" id="tab-detectives">Detectives</button>
+          <button class="admin-tab" id="tab-pending">Pending Approval <span id="pending-count-badge" class="pending-badge" style="display:none;"></span></button>
+        </div>
+        <div class="card admin-card" id="admin-detectives-panel">
           <div class="card-header-row">
             <h3>Registered Detectives</h3>
             <button id="btn-add-user" class="btn btn-sm btn-primary">+ Add Detective</button>
@@ -198,10 +205,16 @@
           <div id="users-list"></div>
           <p id="no-users-msg" class="no-data-msg" style="display:none;">No detectives registered.</p>
         </div>
+        <div class="card admin-card" id="admin-pending-panel" style="display:none;">
+          <h3>Pending Discord Logins</h3>
+          <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">These Discord users have logged in but not yet been approved. Approve them and assign a role to grant access.</p>
+          <div id="pending-list"></div>
+          <p id="no-pending-msg" class="no-data-msg" style="display:none;">No pending users.</p>
+        </div>
       </section>
 
     </main>
-  </div><!-- end app-body -->
+  </div>
 
   <!-- Modal -->
   <div id="modal-overlay" class="modal-overlay" style="display:none;">
@@ -214,6 +227,8 @@
     </div>
   </div>
 
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
