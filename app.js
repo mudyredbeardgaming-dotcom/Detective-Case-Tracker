@@ -923,10 +923,8 @@ async function revokeUser(userId) {
 }
 
 function showAddUserModal() {
-  showModal('Add Detective Manually', `
-    <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
-      Manually add a detective who hasn't logged in with Discord yet. They will need to sign in with Discord before their account becomes active — this pre-approves them with the role you set.
-    </p>
+  showModal('Add Detective', `
+    <div id="add-user-success" style="display:none;color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px;"></div>
     <div class="form-group">
       <label class="field-label">Display Name</label>
       <input type="text" id="u-displayName" placeholder="e.g. Det Chris Hannegan" />
@@ -938,7 +936,7 @@ function showAddUserModal() {
       </div>
       <div class="form-group">
         <label class="field-label">Discord ID</label>
-        <input type="text" id="u-discordId" placeholder="18-digit Discord ID" />
+        <input type="text" id="u-discordId" placeholder="18-digit Discord ID (optional)" />
       </div>
     </div>
     <div class="form-row">
@@ -957,7 +955,7 @@ function showAddUserModal() {
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Done</button>
       <button class="btn btn-primary" onclick="saveManualUser()">Add Detective</button>
     </div>`);
 }
@@ -995,7 +993,20 @@ async function saveManualUser() {
       return;
     }
 
-    closeModal();
+    // Show success, clear form, stay open for more entries
+    const label = displayName || username;
+    const successEl = document.getElementById('add-user-success');
+    if (successEl) {
+      successEl.textContent   = `✓ ${label} added successfully`;
+      successEl.style.display = '';
+      setTimeout(() => { if (successEl) successEl.style.display = 'none'; }, 4000);
+    }
+    document.getElementById('u-displayName').value = '';
+    document.getElementById('u-username').value    = '';
+    document.getElementById('u-discordId').value   = '';
+    document.getElementById('u-badge').value       = '';
+    document.getElementById('u-displayName').focus();
+
     renderAdminDetectives();
   } catch (err) {
     console.error('saveManualUser exception:', err);
