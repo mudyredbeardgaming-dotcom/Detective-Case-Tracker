@@ -950,26 +950,44 @@ function showAddUserModal() {
 }
 
 async function saveManualUser() {
-  const username  = document.getElementById('u-username').value.trim();
-  const discordId = document.getElementById('u-discordId').value.trim();
-  if (!username || !discordId) { alert('Discord username and ID are required.'); return; }
+  const username    = document.getElementById('u-username').value.trim();
+  const discordId   = document.getElementById('u-discordId').value.trim();
+  const displayName = document.getElementById('u-displayName').value.trim();
+  const role        = document.getElementById('u-role').value;
+  const badge       = document.getElementById('u-badge').value.trim();
 
-  const { data: existing } = await db.from('profiles').select('id').eq('discord_id', discordId).single();
-  if (existing) { alert('A user with this Discord ID already exists.'); return; }
+  if (!username) { alert('Discord username is required.'); return; }
 
-  const { error } = await db.from('profiles').insert({
-    id:               crypto.randomUUID(),
-    discord_username: username,
-    display_name:     document.getElementById('u-displayName').value.trim(),
-    discord_id:       discordId,
-    role:             document.getElementById('u-role').value,
-    badge:            document.getElementById('u-badge').value.trim(),
-    approved:         true,
-    added_by:         detName(currentProfile),
-  });
-  if (error) { alert('Error: ' + error.message); return; }
-  closeModal();
-  renderAdminDetectives();
+  try {
+    // Check for duplicate discord_id only if one was provided
+    if (discordId) {
+      const { data: existing } = await db.from('profiles')
+        .select('id').eq('discord_id', discordId).maybeSingle();
+      if (existing) { alert('A user with this Discord ID already exists.'); return; }
+    }
+
+    const { error } = await db.from('profiles').insert({
+      id:               crypto.randomUUID(),
+      discord_username: username,
+      display_name:     displayName,
+      discord_id:       discordId || null,
+      role, badge,
+      approved:         true,
+      added_by:         detName(currentProfile),
+    });
+
+    if (error) {
+      console.error('Insert error:', error);
+      alert('Error adding detective:\n' + error.message + (error.hint ? '\n\nHint: ' + error.hint : ''));
+      return;
+    }
+
+    closeModal();
+    renderAdminDetectives();
+  } catch (err) {
+    console.error('saveManualUser exception:', err);
+    alert('Unexpected error: ' + err.message);
+  }
 }
 
 function showEditUserModal(userId) {
