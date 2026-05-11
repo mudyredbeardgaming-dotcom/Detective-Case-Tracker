@@ -402,13 +402,13 @@ function closeModal() {
 // ─── Case Number ─────────────────────────────────────────────────────────────
 
 async function peekCaseNumber(code) {
-  const { data } = await db.from('case_counters').select('counter').eq('code', code).single();
-  return `${code}-${(data?.counter || 999) + 1}`;
+  const { data } = await db.from('case_counters').select('counter').eq('code', code).maybeSingle();
+  return `${code}-${(data?.counter ?? 999) + 1}`;
 }
 
 async function claimCaseNumber(code) {
-  const { data } = await db.from('case_counters').select('counter').eq('code', code).single();
-  const next = (data?.counter || 999) + 1;
+  const { data } = await db.from('case_counters').select('counter').eq('code', code).maybeSingle();
+  const next = (data?.counter ?? 999) + 1;
   await db.from('case_counters').upsert({ code, counter: next });
   return `${code}-${next}`;
 }
