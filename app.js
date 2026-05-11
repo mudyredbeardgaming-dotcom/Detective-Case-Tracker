@@ -471,16 +471,11 @@ async function buildDetectiveField(c, isEdit) {
   </div>`;
 }
 
-async function showCaseModal(existing) {
+function showCaseModal(existing) {
   const isEdit = !!existing;
   const c      = existing || {};
-  let detField = '';
-  try {
-    detField = await buildDetectiveField(c, isEdit);
-  } catch (err) {
-    console.error('buildDetectiveField error:', err);
-  }
 
+  // Open modal immediately — don't wait on any Supabase query
   showModal(isEdit ? 'Edit Case' : 'New Case', `
     <div class="form-group">
       <label class="field-label">Case Type</label>
@@ -519,7 +514,7 @@ async function showCaseModal(existing) {
         <input type="date" id="f-openedAt" value="${c.opened_at ? c.opened_at.substring(0, 10) : new Date().toISOString().substring(0, 10)}" />
       </div>
     </div>
-    ${detField}
+    <div id="detective-field-container">${canManageUsers() ? '<div style="color:var(--text-muted);font-size:12px;padding:4px 0;">Loading detective list...</div>' : ''}</div>
     <div class="form-group">
       <label class="field-label">Incident Location</label>
       <input type="text" id="f-location" value="${escHtml(c.location || '')}" placeholder="e.g. 300 N Main St, Los Santos" />
@@ -537,12 +532,24 @@ async function showCaseModal(existing) {
     document.getElementById('f-type').addEventListener('change', updateCaseNumberPreview);
   }
 
-  const detSel = document.getElementById('f-detective');
-  if (detSel) {
-    detSel.addEventListener('change', async () => {
-      const { data: det } = await db.from('profiles').select('badge').eq('id', detSel.value).single();
-      const badgeInp = document.getElementById('f-badge');
-      if (badgeInp) badgeInp.value = det?.badge || '';
+  // Load detective dropdown asynchronously — modal is already open and usable
+  if (canManageUsers()) {
+    buildDetectiveField(c, isEdit).then(detField => {
+      const container = document.getElementById('detective-field-container');
+      if (!container) return;
+      container.innerHTML = detField;
+      const detSel = document.getElementById('f-detective');
+      if (detSel) {
+        detSel.addEventListener('change', async () => {
+          const { data: det } = await db.from('profiles').select('badge').eq('id', detSel.value).maybeSingle();
+          const badgeInp = document.getElementById('f-badge');
+          if (badgeInp) badgeInp.value = det?.badge || '';
+        });
+      }
+    }).catch(err => {
+      console.error('Detective field load error:', err);
+      const container = document.getElementById('detective-field-container');
+      if (container) container.innerHTML = '';
     });
   }
 }
