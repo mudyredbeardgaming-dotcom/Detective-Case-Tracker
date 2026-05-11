@@ -529,7 +529,7 @@ async function showCaseModal(existing) {
       <textarea id="f-summary" placeholder="Brief overview of the case...">${escHtml(c.summary || '')}</textarea>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-ghost" onclick="closeModal()">${isEdit ? 'Cancel' : 'Done'}</button>
       <button class="btn btn-primary" onclick="saveCase(${isEdit ? `'${c.id}'` : 'null'})">${isEdit ? 'Save Changes' : 'Create Case'}</button>
     </div>`);
 
@@ -553,64 +553,84 @@ async function saveCase(editId) {
   if (!typeLabel) { alert('Please select a case type.'); return; }
   if (!title)     { alert('Case title is required.');    return; }
 
-  const now    = new Date().toISOString();
-  const manage = canManageUsers();
+  try {
+    const now    = new Date().toISOString();
+    const manage = canManageUsers();
 
-  let detective = '';
-  let badge     = '';
+    let detective = '';
+    let badge     = '';
 
-  if (manage) {
-    const detId = document.getElementById('f-detective')?.value || '';
-    if (detId) {
-      const { data: det } = await db.from('profiles').select('discord_username, display_name, badge').eq('id', detId).single();
-      if (det) { detective = detName(det); badge = det.badge || ''; }
+    if (manage) {
+      const detId = document.getElementById('f-detective')?.value || '';
+      if (detId) {
+        const { data: det } = await db.from('profiles')
+          .select('discord_username, display_name, badge').eq('id', detId).maybeSingle();
+        if (det) { detective = detName(det); badge = det.badge || ''; }
+      }
+    } else if (editId) {
+      const existing = getCaseById(editId);
+      detective = existing.detective || '';
+      badge     = existing.badge     || '';
+    } else {
+      detective = detName(currentProfile);
+      badge     = currentProfile.badge || '';
     }
-  } else if (editId) {
-    const existing = getCaseById(editId);
-    detective = existing.detective || '';
-    badge     = existing.badge     || '';
-  } else {
-    detective = detName(currentProfile);
-    badge     = currentProfile.badge || '';
-  }
 
-  const payload = {
-    title, type: typeLabel,
-    status:    document.getElementById('f-status').value,
-    priority:  document.getElementById('f-priority').value,
-    detective, badge,
-    location:  document.getElementById('f-location').value.trim(),
-    summary:   document.getElementById('f-summary').value.trim(),
-    opened_at: document.getElementById('f-openedAt').value,
-    updated_at: now,
-    closed_at: document.getElementById('f-status').value === 'Closed' ? now : null,
-  };
-
-  if (editId) {
-    const existing = getCaseById(editId);
-    if (existing && existing.closed_at && payload.status === 'Closed') {
-      payload.closed_at = existing.closed_at;
-    }
-    const { data, error } = await db.from('cases').update(payload).eq('id', editId).select().single();
-    if (error) { alert('Error saving case: ' + error.message); return; }
-    const idx = cases.findIndex(c => c.id === editId);
-    if (idx !== -1) cases[idx] = data;
-    closeModal();
-    renderDetail();
-  } else {
-    const typeObj    = CASE_TYPES.find(t => t.label === typeLabel);
-    const caseNumber = await claimCaseNumber(typeObj.code);
-    const newCase = {
-      id: genId(), case_number: caseNumber, created_by: currentUser.id,
-      notes: [], reports: [], persons: [], closed_at: null,
-      ...payload,
+    const payload = {
+      title, type: typeLabel,
+      status:    document.getElementById('f-status').value,
+      priority:  document.getElementById('f-priority').value,
+      detective, badge,
+      location:  document.getElementById('f-location').value.trim(),
+      summary:   document.getElementById('f-summary').value.trim(),
+      opened_at: document.getElementById('f-openedAt').value,
+      updated_at: now,
+      closed_at: document.getElementById('f-status').value === 'Closed' ? now : null,
     };
-    const { data, error } = await db.from('cases').insert(newCase).select().single();
-    if (error) { alert('Error creating case: ' + error.message); return; }
-    cases.push(data);
-    closeModal();
-    await renderDashboard();
-    openCase(data.id);
+
+    if (editId) {
+      const existing = getCaseById(editId);
+      if (existing && existing.closed_at && payload.status === 'Closed') {
+        payload.closed_at = existing.closed_at;
+      }
+      const { data, error } = await db.from('cases').update(payload).eq('id', editId).select().single();
+      if (error) { alert('Error saving case: ' + error.message); return; }
+      const idx = cases.findIndex(c => c.id === editId);
+      if (idx !== -1) cases[idx] = data;
+      closeModal();
+      renderDetail();
+    } else {
+      const typeObj    = CASE_TYPES.find(t => t.label === typeLabel);
+      const caseNumber = await claimCaseNumber(typeObj.code);
+      const newCase = {
+        id: genId(), case_number: caseNumber, created_by: currentUser.id,
+        notes: [], reports: [], persons: [], closed_at: null,
+        ...payload,
+      };
+      const { data, error } = await db.from('cases').insert(newCase).select().single();
+      if (error) { alert('Error creating case: ' + error.message); return; }
+      cases.push(data);
+
+      // Reset form for another case rather than navigating away
+      await renderDashboard();
+      document.getElementById('f-title').value   = '';
+      document.getElementById('f-summary').value = '';
+      document.getElementById('f-location').value = '';
+      document.getElementById('f-type').value    = '';
+      document.getElementById('f-caseNumber').value = '';
+      document.getElementById('f-status').value  = 'Open';
+      document.getElementById('f-priority').value = 'Medium';
+      document.getElementById('f-openedAt').value = new Date().toISOString().substring(0, 10);
+
+      const successBanner = document.createElement('div');
+      successBanner.style.cssText = 'color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px;';
+      successBanner.textContent = `✓ Case ${caseNumber} created. Fill in the form to add another, or click Cancel to close.`;
+      document.getElementById('modal-body').prepend(successBanner);
+      setTimeout(() => successBanner.remove(), 5000);
+    }
+  } catch (err) {
+    console.error('saveCase error:', err);
+    alert('Error: ' + err.message);
   }
 }
 
