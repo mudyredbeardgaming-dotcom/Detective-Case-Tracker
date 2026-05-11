@@ -70,11 +70,21 @@ function canManageUsers() {
 // ─── Screen Management ────────────────────────────────────────────────────────
 
 function showScreen(name) {
+  console.log('[CID] showScreen ->', name);
   document.getElementById('loading-screen').style.display  = 'none';
   document.getElementById('login-screen').style.display   = name === 'login'   ? 'flex' : 'none';
   document.getElementById('pending-screen').style.display = name === 'pending' ? 'flex' : 'none';
   document.getElementById('app-body').style.display       = name === 'app'     ? ''     : 'none';
 }
+
+// Safety net — if loading screen is still up after 8 seconds, fall back to login
+setTimeout(() => {
+  const ls = document.getElementById('loading-screen');
+  if (ls && ls.style.display !== 'none') {
+    console.warn('[CID] Auth timed out — falling back to login');
+    showScreen('login');
+  }
+}, 8000);
 
 function showView(name) {
   ['view-dashboard', 'view-detail', 'view-admin'].forEach(id => {
@@ -106,8 +116,10 @@ db.auth.onAuthStateChange(async (event, session) => {
 });
 
 async function handleUserSession() {
+  console.log('[CID] handleUserSession start, uid:', currentUser.id);
   // Load this user's profile
   const { data: profile, error: profileErr } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+  console.log('[CID] profile query result:', profile ? 'found' : 'not found', profileErr?.code ?? '');
 
   if (profileErr && profileErr.code !== 'PGRST116') {
     // PGRST116 = no rows found (expected for new users); anything else is a real error
@@ -147,6 +159,7 @@ async function handleUserSession() {
   }
 
   currentProfile = resolvedProfile;
+  console.log('[CID] profile approved:', currentProfile?.approved, 'role:', currentProfile?.role);
 
   if (currentProfile?.approved) {
     await enterApp();
