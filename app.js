@@ -39,6 +39,26 @@ let activeAdminTab = 'detectives';
 
 function genId() { return Math.random().toString(36).slice(2, 10).toUpperCase(); }
 
+// Races any Supabase promise against a timeout so cold-start hangs surface as errors
+function dbq(promise, ms = 12000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out — database may be waking up. Try again in a moment.')), ms)
+    ),
+  ]);
+}
+
+// Disable a button and swap its label while an async operation runs
+function btnBusy(id, label) {
+  const b = document.getElementById(id);
+  if (b) { b.disabled = true; b._label = b.textContent; b.textContent = label; }
+}
+function btnReady(id) {
+  const b = document.getElementById(id);
+  if (b && b.isConnected) { b.disabled = false; b.textContent = b._label || b.textContent; }
+}
+
 function fmtDate(iso) {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -402,14 +422,14 @@ function closeModal() {
 // ─── Case Number ─────────────────────────────────────────────────────────────
 
 async function peekCaseNumber(code) {
-  const { data } = await db.from('case_counters').select('counter').eq('code', code).maybeSingle();
+  const { data } = await dbq(db.from('case_counters').select('counter').eq('code', code).maybeSingle());
   return `${code}-${(data?.counter ?? 999) + 1}`;
 }
 
 async function claimCaseNumber(code) {
-  const { data } = await db.from('case_counters').select('counter').eq('code', code).maybeSingle();
+  const { data } = await dbq(db.from('case_counters').select('counter').eq('code', code).maybeSingle());
   const next = (data?.counter ?? 999) + 1;
-  await db.from('case_counters').upsert({ code, counter: next });
+  await dbq(db.from('case_counters').upsert({ code, counter: next }));
   return `${code}-${next}`;
 }
 
@@ -525,7 +545,7 @@ function showCaseModal(existing) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">${isEdit ? 'Cancel' : 'Done'}</button>
-      <button class="btn btn-primary" onclick="saveCase(${isEdit ? `'${c.id}'` : 'null'})">${isEdit ? 'Save Changes' : 'Create Case'}</button>
+      <button id="btn-save-case" class="btn btn-primary" onclick="saveCase(${isEdit ? `'${c.id}'` : 'null'})">${isEdit ? 'Save Changes' : 'Create Case'}</button>
     </div>`);
 
   if (!isEdit) {
@@ -564,24 +584,23 @@ async function saveCase(editId) {
   if (!typeLabel) { alert('Please select a case type.'); return; }
   if (!title)     { alert('Case title is required.');    return; }
 
+  btnBusy('btn-save-case', editId ? 'Saving...' : 'Creating...');
   try {
     const now    = new Date().toISOString();
     const manage = canManageUsers();
-
-    let detective = '';
-    let badge     = '';
+    let detective = '', badge = '';
 
     if (manage) {
       const detId = document.getElementById('f-detective')?.value || '';
       if (detId) {
-        const { data: det } = await db.from('profiles')
-          .select('discord_username, display_name, badge').eq('id', detId).maybeSingle();
+        const { data: det } = await dbq(db.from('profiles')
+          .select('discord_username, display_name, badge').eq('id', detId).maybeSingle());
         if (det) { detective = detName(det); badge = det.badge || ''; }
       }
     } else if (editId) {
-      const existing = getCaseById(editId);
-      detective = existing.detective || '';
-      badge     = existing.badge     || '';
+      const ex = getCaseById(editId);
+      detective = ex.detective || '';
+      badge     = ex.badge     || '';
     } else {
       detective = detName(currentProfile);
       badge     = currentProfile.badge || '';
@@ -600,12 +619,10 @@ async function saveCase(editId) {
     };
 
     if (editId) {
-      const existing = getCaseById(editId);
-      if (existing && existing.closed_at && payload.status === 'Closed') {
-        payload.closed_at = existing.closed_at;
-      }
-      const { data, error } = await db.from('cases').update(payload).eq('id', editId).select().single();
-      if (error) { alert('Error saving case: ' + error.message); return; }
+      const ex = getCaseById(editId);
+      if (ex?.closed_at && payload.status === 'Closed') payload.closed_at = ex.closed_at;
+      const { data, error } = await dbq(db.from('cases').update(payload).eq('id', editId).select().single());
+      if (error) throw new Error(error.message);
       const idx = cases.findIndex(c => c.id === editId);
       if (idx !== -1) cases[idx] = data;
       closeModal();
@@ -613,35 +630,35 @@ async function saveCase(editId) {
     } else {
       const typeObj    = CASE_TYPES.find(t => t.label === typeLabel);
       const caseNumber = await claimCaseNumber(typeObj.code);
-      const newCase = {
+      const newCase    = {
         id: genId(), case_number: caseNumber, created_by: currentUser.id,
-        notes: [], reports: [], persons: [], closed_at: null,
-        ...payload,
+        notes: [], reports: [], persons: [], closed_at: null, ...payload,
       };
-      const { data, error } = await db.from('cases').insert(newCase).select().single();
-      if (error) { alert('Error creating case: ' + error.message); return; }
+      const { data, error } = await dbq(db.from('cases').insert(newCase).select().single());
+      if (error) throw new Error(error.message);
       cases.push(data);
+      renderDashboard();
 
-      // Reset form for another case rather than navigating away
-      await renderDashboard();
-      document.getElementById('f-title').value   = '';
-      document.getElementById('f-summary').value = '';
-      document.getElementById('f-location').value = '';
-      document.getElementById('f-type').value    = '';
-      document.getElementById('f-caseNumber').value = '';
-      document.getElementById('f-status').value  = 'Open';
+      // Clear form — stay open so another case can be created immediately
+      ['f-title','f-summary','f-location','f-caseNumber'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+      });
+      document.getElementById('f-type').value     = '';
+      document.getElementById('f-status').value   = 'Open';
       document.getElementById('f-priority').value = 'Medium';
       document.getElementById('f-openedAt').value = new Date().toISOString().substring(0, 10);
 
-      const successBanner = document.createElement('div');
-      successBanner.style.cssText = 'color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px;';
-      successBanner.textContent = `✓ Case ${caseNumber} created. Fill in the form to add another, or click Cancel to close.`;
-      document.getElementById('modal-body').prepend(successBanner);
-      setTimeout(() => successBanner.remove(), 5000);
+      const banner = document.createElement('div');
+      banner.style.cssText = 'color:#3fb950;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.3);border-radius:6px;padding:8px 12px;font-size:13px;margin-bottom:12px;';
+      banner.textContent   = `✓ Case ${caseNumber} created — fill in the form to add another, or click Done.`;
+      document.getElementById('modal-body').prepend(banner);
+      setTimeout(() => banner.remove(), 5000);
+      btnReady('btn-save-case');
     }
   } catch (err) {
     console.error('saveCase error:', err);
     alert('Error: ' + err.message);
+    btnReady('btn-save-case');
   }
 }
 
@@ -667,7 +684,7 @@ function showNoteModal() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Done</button>
-      <button class="btn btn-primary" onclick="saveNote()">Add Note</button>
+      <button id="btn-save-note" class="btn btn-primary" onclick="saveNote()">Add Note</button>
     </div>`);
 }
 
@@ -675,6 +692,7 @@ async function saveNote() {
   const detective    = document.getElementById('n-detective').value.trim();
   const text         = document.getElementById('n-text').value.trim();
   if (!text) { alert('Note text is required.'); return; }
+  btnBusy('btn-save-note', 'Saving...');
   try {
     const c            = getCaseById(currentCaseId);
     const statusUpdate = document.getElementById('n-statusUpdate').value;
@@ -685,8 +703,8 @@ async function saveNote() {
       updates.status = statusUpdate;
       if (statusUpdate === 'Closed') updates.closed_at = c.closed_at || now;
     }
-    const { data, error } = await db.from('cases').update(updates).eq('id', currentCaseId).select().single();
-    if (error) { alert('Error saving note: ' + error.message); return; }
+    const { data, error } = await dbq(db.from('cases').update(updates).eq('id', currentCaseId).select().single());
+    if (error) throw new Error(error.message);
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
     renderDetail();
@@ -694,8 +712,9 @@ async function saveNote() {
     document.getElementById('n-statusUpdate').value = '';
     const s = document.getElementById('note-success');
     if (s) { s.textContent = '✓ Note added'; s.style.display = ''; setTimeout(() => { if (s) s.style.display = 'none'; }, 3000); }
+    btnReady('btn-save-note');
     document.getElementById('n-text').focus();
-  } catch (err) { console.error('saveNote:', err); alert('Error: ' + err.message); }
+  } catch (err) { console.error('saveNote:', err); alert('Error: ' + err.message); btnReady('btn-save-note'); }
 }
 
 async function deleteNote(noteId) {
@@ -739,7 +758,7 @@ function showReportModal() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Done</button>
-      <button class="btn btn-primary" onclick="saveReport()">File Report</button>
+      <button id="btn-save-report" class="btn btn-primary" onclick="saveReport()">File Report</button>
     </div>`);
 }
 
@@ -747,6 +766,7 @@ async function saveReport() {
   const reportId = document.getElementById('r-reportId').value.trim();
   const content  = document.getElementById('r-content').value.trim();
   if (!reportId || !content) { alert('Report ID and content are required.'); return; }
+  btnBusy('btn-save-report', 'Filing...');
   try {
     const c       = getCaseById(currentCaseId);
     const now     = new Date().toISOString();
@@ -756,8 +776,8 @@ async function saveReport() {
       filedBy: document.getElementById('r-filedBy').value.trim(),
       content, createdAt: now,
     }];
-    const { data, error } = await db.from('cases').update({ reports, updated_at: now }).eq('id', currentCaseId).select().single();
-    if (error) { alert('Error: ' + error.message); return; }
+    const { data, error } = await dbq(db.from('cases').update({ reports, updated_at: now }).eq('id', currentCaseId).select().single());
+    if (error) throw new Error(error.message);
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
     renderDetail();
@@ -767,8 +787,9 @@ async function saveReport() {
     document.getElementById('r-type').value     = 'Initial Report';
     const s = document.getElementById('report-success');
     if (s) { s.textContent = `✓ ${reportId} filed`; s.style.display = ''; setTimeout(() => { if (s) s.style.display = 'none'; }, 3000); }
+    btnReady('btn-save-report');
     document.getElementById('r-content').focus();
-  } catch (err) { console.error('saveReport:', err); alert('Error: ' + err.message); }
+  } catch (err) { console.error('saveReport:', err); alert('Error: ' + err.message); btnReady('btn-save-report'); }
 }
 
 async function deleteReport(reportId) {
@@ -831,7 +852,7 @@ function showPersonModal() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Done</button>
-      <button class="btn btn-primary" onclick="savePerson()">Add Person</button>
+      <button id="btn-save-person" class="btn btn-primary" onclick="savePerson()">Add Person</button>
     </div>`);
 
   document.getElementById('p-spoken').addEventListener('change', function () {
@@ -842,6 +863,7 @@ function showPersonModal() {
 async function savePerson() {
   const name = document.getElementById('p-name').value.trim();
   if (!name) { alert('Name is required.'); return; }
+  btnBusy('btn-save-person', 'Saving...');
   try {
     const c       = getCaseById(currentCaseId);
     const spoken  = document.getElementById('p-spoken').checked;
@@ -855,22 +877,21 @@ async function savePerson() {
       spoken, spokenBy: spoken ? document.getElementById('p-spokenBy').value.trim() : '',
     }];
     activePoiRole = role;
-    const { data, error } = await db.from('cases').update({ persons, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single();
-    if (error) { alert('Error: ' + error.message); return; }
+    const { data, error } = await dbq(db.from('cases').update({ persons, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single());
+    if (error) throw new Error(error.message);
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
     renderDetail();
-    document.getElementById('p-name').value        = '';
-    document.getElementById('p-dob').value         = '';
-    document.getElementById('p-phone').value       = '';
-    document.getElementById('p-address').value     = '';
-    document.getElementById('p-description').value = '';
-    document.getElementById('p-spoken').checked    = false;
+    ['p-name','p-dob','p-phone','p-address','p-description'].forEach(id => {
+      const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('p-spoken').checked              = false;
     document.getElementById('p-spokenby-group').style.display = 'none';
     const s = document.getElementById('person-success');
     if (s) { s.textContent = `✓ ${name} added`; s.style.display = ''; setTimeout(() => { if (s) s.style.display = 'none'; }, 3000); }
+    btnReady('btn-save-person');
     document.getElementById('p-name').focus();
-  } catch (err) { console.error('savePerson:', err); alert('Error: ' + err.message); }
+  } catch (err) { console.error('savePerson:', err); alert('Error: ' + err.message); btnReady('btn-save-person'); }
 }
 
 async function deletePerson(personId) {
@@ -1044,7 +1065,7 @@ function showAddUserModal() {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal()">Done</button>
-      <button class="btn btn-primary" onclick="saveManualUser()">Add Detective</button>
+      <button id="btn-save-detective" class="btn btn-primary" onclick="saveManualUser()">Add Detective</button>
     </div>`);
 }
 
@@ -1065,7 +1086,8 @@ async function saveManualUser() {
       if (existing) { alert('A user with this Discord ID already exists.'); return; }
     }
 
-    const { error } = await db.from('profiles').insert({
+    btnBusy('btn-save-detective', 'Adding...');
+    const { error } = await dbq(db.from('profiles').insert({
       id:               crypto.randomUUID(),
       discord_username: username,
       display_name:     displayName,
@@ -1073,11 +1095,12 @@ async function saveManualUser() {
       role, badge,
       approved:         true,
       added_by:         detName(currentProfile),
-    });
+    }));
 
     if (error) {
       console.error('Insert error:', error);
       alert('Error adding detective:\n' + error.message + (error.hint ? '\n\nHint: ' + error.hint : ''));
+      btnReady('btn-save-detective');
       return;
     }
 
@@ -1094,11 +1117,12 @@ async function saveManualUser() {
     document.getElementById('u-discordId').value   = '';
     document.getElementById('u-badge').value       = '';
     document.getElementById('u-displayName').focus();
-
+    btnReady('btn-save-detective');
     renderAdminDetectives();
   } catch (err) {
     console.error('saveManualUser exception:', err);
     alert('Unexpected error: ' + err.message);
+    btnReady('btn-save-detective');
   }
 }
 
