@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const { createClient } = window.supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: { flowType: 'implicit' }
+  auth: { flowType: 'implicit', persistSession: true, storageKey: 'cid-session' }
 });
 
 console.log('[CID URL] hash:', window.location.hash.slice(0, 80) || '(empty)');
@@ -70,6 +70,7 @@ function canManageUsers() {
 // ─── Screen Management ────────────────────────────────────────────────────────
 
 function showScreen(name) {
+  document.getElementById('loading-screen').style.display  = 'none';
   document.getElementById('login-screen').style.display   = name === 'login'   ? 'flex' : 'none';
   document.getElementById('pending-screen').style.display = name === 'pending' ? 'flex' : 'none';
   document.getElementById('app-body').style.display       = name === 'app'     ? ''     : 'none';
