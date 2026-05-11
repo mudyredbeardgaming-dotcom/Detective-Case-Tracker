@@ -5,7 +5,12 @@ const SUPABASE_URL      = 'https://koskswavnwvvifjvhxjl.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtvc2tzd2F2bnd2dmlmanZoeGpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NTYwNDIsImV4cCI6MjA5NDAzMjA0Mn0.Q4ThnYoehrZ9g84VC-o2CPgrdMnSUpU-tVwVsGH8FjY';
 
 const { createClient } = window.supabase;
-const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { flowType: 'implicit' }
+});
+
+console.log('[CID URL] hash:', window.location.hash.slice(0, 80) || '(empty)');
+console.log('[CID URL] search:', window.location.search || '(empty)');
 
 // ─── Case Types ───────────────────────────────────────────────────────────────
 
