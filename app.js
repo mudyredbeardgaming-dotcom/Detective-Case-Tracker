@@ -59,6 +59,10 @@ function userInitials(name) {
   return (name || '?').split(/[\s._-]+/).map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
 }
 
+function detName(profile) {
+  return (profile?.display_name || profile?.discord_username || 'Unknown').trim();
+}
+
 function canManageUsers() {
   return !!currentProfile && ['Det III', 'Command'].includes(currentProfile.role);
 }
@@ -178,9 +182,10 @@ async function signOut() {
 
 function updateHeader() {
   if (!currentProfile) return;
-  document.getElementById('header-username').textContent     = currentProfile.discord_username;
+  const name = detName(currentProfile);
+  document.getElementById('header-username').textContent     = name;
   document.getElementById('header-role').textContent         = currentProfile.role + (currentProfile.badge ? ' · #' + currentProfile.badge : '');
-  document.getElementById('user-initials-badge').textContent = userInitials(currentProfile.discord_username);
+  document.getElementById('user-initials-badge').textContent = userInitials(name);
   document.getElementById('btn-admin').style.display         = canManageUsers() ? '' : 'none';
 }
 
@@ -398,18 +403,19 @@ async function buildDetectiveField(c, isEdit) {
   }
 
   const { data: dets } = await db.from('profiles')
-    .select('id, discord_username, role, badge')
-    .in('role', ['Det I', 'Det II'])
+    .select('id, discord_username, display_name, role, badge')
+    .in('role', ['Det I', 'Det II', 'Det III', 'Command'])
     .eq('approved', true)
     .order('discord_username');
 
   const options = dets && dets.length
     ? (dets).map(u => {
-        const sel   = isEdit && c.detective === u.discord_username ? 'selected' : '';
-        const label = `${u.discord_username} · ${u.role}${u.badge ? ' · #' + u.badge : ''}`;
+        const name  = detName(u);
+        const sel   = isEdit && c.detective === name ? 'selected' : '';
+        const label = `${name} · ${u.role}${u.badge ? ' · #' + u.badge : ''}`;
         return `<option value="${u.id}" ${sel}>${escHtml(label)}</option>`;
       }).join('')
-    : '<option disabled>No Det I / Det II users approved yet</option>';
+    : '<option disabled>No approved detectives yet</option>';
 
   return `<div class="form-row">
     <div class="form-group">
@@ -512,15 +518,15 @@ async function saveCase(editId) {
   if (manage) {
     const detId = document.getElementById('f-detective')?.value || '';
     if (detId) {
-      const { data: det } = await db.from('profiles').select('discord_username, badge').eq('id', detId).single();
-      if (det) { detective = det.discord_username; badge = det.badge || ''; }
+      const { data: det } = await db.from('profiles').select('discord_username, display_name, badge').eq('id', detId).single();
+      if (det) { detective = detName(det); badge = det.badge || ''; }
     }
   } else if (editId) {
     const existing = getCaseById(editId);
     detective = existing.detective || '';
     badge     = existing.badge     || '';
   } else {
-    detective = currentProfile.discord_username;
+    detective = detName(currentProfile);
     badge     = currentProfile.badge || '';
   }
 
@@ -570,7 +576,7 @@ function showNoteModal() {
   showModal('Add Detective Note', `
     <div class="form-group">
       <label class="field-label">Detective Name</label>
-      <input type="text" id="n-detective" value="${escHtml(currentProfile?.discord_username || '')}" />
+      <input type="text" id="n-detective" value="${escHtml(detName(currentProfile))}" />
     </div>
     <div class="form-group">
       <label class="field-label">Status Update (optional)</label>
@@ -645,7 +651,7 @@ function showReportModal() {
     </div>
     <div class="form-group">
       <label class="field-label">Filed By</label>
-      <input type="text" id="r-filedBy" value="${escHtml(currentProfile?.discord_username || c.detective || '')}" />
+      <input type="text" id="r-filedBy" value="${escHtml(detName(currentProfile) || c.detective || '')}" />
     </div>
     <div class="form-group">
       <label class="field-label">Report Content</label>
@@ -823,7 +829,8 @@ async function renderAdminDetectives() {
   list.innerHTML = users.map(u => `
     <div class="user-item">
       <div class="user-item-left">
-        <div class="user-item-name">${escHtml(u.discord_username)}</div>
+        <div class="user-item-name">${escHtml(detName(u))}</div>
+        ${u.display_name ? `<div class="user-item-discord">Discord: ${escHtml(u.discord_username)}</div>` : ''}
         <div class="user-item-discord">Discord ID: ${escHtml(u.discord_id || '—')}</div>
         ${u.badge ? `<div class="user-item-badge">Badge: #${escHtml(u.badge)}</div>` : ''}
         <div class="user-item-meta">Added ${fmtDate(u.created_at)}</div>
@@ -862,6 +869,7 @@ async function renderPendingUsers() {
         <div class="user-item-meta">Requested ${fmtDateTime(u.created_at)}</div>
       </div>
       <div class="user-item-right">
+        <input type="text" id="name-inp-${u.id}" class="approve-badge-inp" placeholder="Display Name" style="width:160px;" />
         <select id="role-sel-${u.id}" class="approve-role-sel">
           <option value="Det I">Det I</option>
           <option value="Det II">Det II</option>
@@ -876,9 +884,10 @@ async function renderPendingUsers() {
 }
 
 async function approveUser(userId) {
-  const role  = document.getElementById(`role-sel-${userId}`)?.value || 'Det I';
-  const badge = document.getElementById(`badge-inp-${userId}`)?.value.trim() || '';
-  const { error } = await db.from('profiles').update({ approved: true, role, badge }).eq('id', userId);
+  const role        = document.getElementById(`role-sel-${userId}`)?.value || 'Det I';
+  const badge       = document.getElementById(`badge-inp-${userId}`)?.value.trim() || '';
+  const displayName = document.getElementById(`name-inp-${userId}`)?.value.trim() || '';
+  const { error } = await db.from('profiles').update({ approved: true, role, badge, display_name: displayName }).eq('id', userId);
   if (error) { alert('Error: ' + error.message); return; }
   renderPendingUsers();
   // Update pending badge count
@@ -904,6 +913,10 @@ function showAddUserModal() {
     <p style="color:var(--text-muted);font-size:13px;margin-bottom:16px;">
       Manually add a detective who hasn't logged in with Discord yet. They will need to sign in with Discord before their account becomes active — this pre-approves them with the role you set.
     </p>
+    <div class="form-group">
+      <label class="field-label">Display Name</label>
+      <input type="text" id="u-displayName" placeholder="e.g. Det Chris Hannegan" />
+    </div>
     <div class="form-row">
       <div class="form-group">
         <label class="field-label">Discord Username</label>
@@ -946,11 +959,12 @@ async function saveManualUser() {
   const { error } = await db.from('profiles').insert({
     id:               crypto.randomUUID(),
     discord_username: username,
+    display_name:     document.getElementById('u-displayName').value.trim(),
     discord_id:       discordId,
     role:             document.getElementById('u-role').value,
     badge:            document.getElementById('u-badge').value.trim(),
     approved:         true,
-    added_by:         currentProfile.discord_username,
+    added_by:         detName(currentProfile),
   });
   if (error) { alert('Error: ' + error.message); return; }
   closeModal();
@@ -961,6 +975,10 @@ function showEditUserModal(userId) {
   db.from('profiles').select('*').eq('id', userId).single().then(({ data: u }) => {
     if (!u) return;
     showModal('Edit Detective', `
+      <div class="form-group">
+        <label class="field-label">Display Name</label>
+        <input type="text" id="u-displayName" value="${escHtml(u.display_name || '')}" placeholder="e.g. Det Chris Hannegan" />
+      </div>
       <div class="form-group">
         <label class="field-label">Discord Username</label>
         <input type="text" id="u-username" value="${escHtml(u.discord_username)}" />
@@ -987,6 +1005,7 @@ function showEditUserModal(userId) {
 
 async function saveEditUser(userId) {
   const { error } = await db.from('profiles').update({
+    display_name:     document.getElementById('u-displayName').value.trim(),
     discord_username: document.getElementById('u-username').value.trim(),
     role:             document.getElementById('u-role').value,
     badge:            document.getElementById('u-badge').value.trim(),
