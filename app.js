@@ -156,12 +156,30 @@ db.auth.onAuthStateChange(async (event, session) => {
 
 async function handleUserSession() {
   console.log('[CID] handleUserSession start, uid:', currentUser.id);
-  // Load this user's profile
+
+  // Instant load for returning users — use sessionStorage cache, refresh in background
+  const cacheKey  = 'cid-profile-' + currentUser.id;
+  const cachedRaw = sessionStorage.getItem(cacheKey);
+  if (cachedRaw) {
+    try {
+      const cached = JSON.parse(cachedRaw);
+      if (cached?.id === currentUser.id && cached?.approved) {
+        currentProfile = cached;
+        console.log('[CID] instant load from cache, role:', cached.role);
+        await enterApp();
+        db.from('profiles').select('*').eq('id', currentUser.id).single()
+          .then(({ data }) => { if (data) { sessionStorage.setItem(cacheKey, JSON.stringify(data)); currentProfile = data; updateHeader(); } })
+          .catch(() => {});
+        return;
+      }
+    } catch (_) { sessionStorage.removeItem(cacheKey); }
+  }
+
+  // Full profile load (first visit or cache miss)
   const { data: profile, error: profileErr } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
   console.log('[CID] profile query result:', profile ? 'found' : 'not found', profileErr?.code ?? '');
 
   if (profileErr && profileErr.code !== 'PGRST116') {
-    // PGRST116 = no rows found (expected for new users); anything else is a real error
     throw new Error('Profile lookup failed: ' + profileErr.message + ' (code: ' + profileErr.code + '). Make sure you have run schema.sql in Supabase.');
   }
 
@@ -201,6 +219,7 @@ async function handleUserSession() {
   console.log('[CID] profile approved:', currentProfile?.approved, 'role:', currentProfile?.role);
 
   if (currentProfile?.approved) {
+    sessionStorage.setItem(cacheKey, JSON.stringify(currentProfile));
     await enterApp();
   } else {
     showScreen('pending');
@@ -228,6 +247,7 @@ async function signInWithDiscord() {
 }
 
 async function signOut() {
+  if (currentUser) sessionStorage.removeItem('cid-profile-' + currentUser.id);
   await db.auth.signOut();
 }
 
@@ -694,16 +714,11 @@ async function saveNote() {
   if (!text) { alert('Note text is required.'); return; }
   btnBusy('btn-save-note', 'Saving...');
   try {
-    const c            = getCaseById(currentCaseId);
     const statusUpdate = document.getElementById('n-statusUpdate').value;
-    const now          = new Date().toISOString();
-    const notes   = [...(c.notes || []), { id: genId(), detective, text, statusUpdate, createdAt: now }];
-    const updates = { notes, updated_at: now };
-    if (statusUpdate) {
-      updates.status = statusUpdate;
-      if (statusUpdate === 'Closed') updates.closed_at = c.closed_at || now;
-    }
-    const { data, error } = await dbq(db.from('cases').update(updates).eq('id', currentCaseId).select().single());
+    const note = { id: genId(), detective, text, statusUpdate, createdAt: new Date().toISOString() };
+    const { data, error } = await dbq(
+      db.rpc('add_case_note', { p_case_id: currentCaseId, p_note: note, p_status: statusUpdate || null }).single()
+    );
     if (error) throw new Error(error.message);
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
@@ -719,9 +734,7 @@ async function saveNote() {
 
 async function deleteNote(noteId) {
   if (!confirm('Delete this note?')) return;
-  const c     = getCaseById(currentCaseId);
-  const notes = (c.notes || []).filter(n => n.id !== noteId);
-  const { data, error } = await db.from('cases').update({ notes, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single();
+  const { data, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'notes', p_item_id: noteId }).single();
   if (error) { alert('Error: ' + error.message); return; }
   const idx = cases.findIndex(x => x.id === currentCaseId);
   if (idx !== -1) cases[idx] = data;
@@ -768,15 +781,15 @@ async function saveReport() {
   if (!reportId || !content) { alert('Report ID and content are required.'); return; }
   btnBusy('btn-save-report', 'Filing...');
   try {
-    const c       = getCaseById(currentCaseId);
-    const now     = new Date().toISOString();
-    const reports = [...(c.reports || []), {
+    const report = {
       id: genId(), reportId,
       type:    document.getElementById('r-type').value,
       filedBy: document.getElementById('r-filedBy').value.trim(),
-      content, createdAt: now,
-    }];
-    const { data, error } = await dbq(db.from('cases').update({ reports, updated_at: now }).eq('id', currentCaseId).select().single());
+      content, createdAt: new Date().toISOString(),
+    };
+    const { data, error } = await dbq(
+      db.rpc('add_case_report', { p_case_id: currentCaseId, p_report: report }).single()
+    );
     if (error) throw new Error(error.message);
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
@@ -794,9 +807,7 @@ async function saveReport() {
 
 async function deleteReport(reportId) {
   if (!confirm('Delete this report?')) return;
-  const c       = getCaseById(currentCaseId);
-  const reports = (c.reports || []).filter(r => r.id !== reportId);
-  const { data, error } = await db.from('cases').update({ reports, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single();
+  const { data, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'reports', p_item_id: reportId }).single();
   if (error) { alert('Error: ' + error.message); return; }
   const idx = cases.findIndex(x => x.id === currentCaseId);
   if (idx !== -1) cases[idx] = data;
@@ -865,19 +876,20 @@ async function savePerson() {
   if (!name) { alert('Name is required.'); return; }
   btnBusy('btn-save-person', 'Saving...');
   try {
-    const c       = getCaseById(currentCaseId);
-    const spoken  = document.getElementById('p-spoken').checked;
-    const role    = document.getElementById('p-role').value;
-    const persons = [...(c.persons || []), {
+    const spoken = document.getElementById('p-spoken').checked;
+    const role   = document.getElementById('p-role').value;
+    const person = {
       id: genId(), name, role,
       dob:         document.getElementById('p-dob').value.trim(),
       phone:       document.getElementById('p-phone').value.trim(),
       address:     document.getElementById('p-address').value.trim(),
       description: document.getElementById('p-description').value.trim(),
       spoken, spokenBy: spoken ? document.getElementById('p-spokenBy').value.trim() : '',
-    }];
+    };
     activePoiRole = role;
-    const { data, error } = await dbq(db.from('cases').update({ persons, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single());
+    const { data, error } = await dbq(
+      db.rpc('add_case_person', { p_case_id: currentCaseId, p_person: person }).single()
+    );
     if (error) throw new Error(error.message);
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
@@ -885,7 +897,7 @@ async function savePerson() {
     ['p-name','p-dob','p-phone','p-address','p-description'].forEach(id => {
       const el = document.getElementById(id); if (el) el.value = '';
     });
-    document.getElementById('p-spoken').checked              = false;
+    document.getElementById('p-spoken').checked               = false;
     document.getElementById('p-spokenby-group').style.display = 'none';
     const s = document.getElementById('person-success');
     if (s) { s.textContent = `✓ ${name} added`; s.style.display = ''; setTimeout(() => { if (s) s.style.display = 'none'; }, 3000); }
@@ -896,9 +908,7 @@ async function savePerson() {
 
 async function deletePerson(personId) {
   if (!confirm('Remove this person from the case?')) return;
-  const c       = getCaseById(currentCaseId);
-  const persons = (c.persons || []).filter(p => p.id !== personId);
-  const { data, error } = await db.from('cases').update({ persons, updated_at: new Date().toISOString() }).eq('id', currentCaseId).select().single();
+  const { data, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'persons', p_item_id: personId }).single();
   if (error) { alert('Error: ' + error.message); return; }
   const idx = cases.findIndex(x => x.id === currentCaseId);
   if (idx !== -1) cases[idx] = data;
