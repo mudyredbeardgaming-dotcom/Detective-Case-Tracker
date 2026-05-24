@@ -40,11 +40,11 @@ let activeAdminTab = 'detectives';
 function genId() { return Math.random().toString(36).slice(2, 10).toUpperCase(); }
 
 // Races any Supabase promise against a timeout so cold-start hangs surface as errors
-function dbq(promise, ms = 12000) {
+function dbq(promise, ms = 30000) {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out — database may be waking up. Try again in a moment.')), ms)
+      setTimeout(() => reject(new Error('Database is taking too long to respond — it may still be waking up. Please wait a few seconds and try again.')), ms)
     ),
   ]);
 }
