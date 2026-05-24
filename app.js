@@ -40,7 +40,7 @@ let activeAdminTab = 'detectives';
 function genId() { return Math.random().toString(36).slice(2, 10).toUpperCase(); }
 
 // Races any Supabase promise against a timeout so cold-start hangs surface as errors
-function dbq(promise, ms = 30000) {
+function dbq(promise, ms = 60000) {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
@@ -52,11 +52,18 @@ function dbq(promise, ms = 30000) {
 // Disable a button and swap its label while an async operation runs
 function btnBusy(id, label) {
   const b = document.getElementById(id);
-  if (b) { b.disabled = true; b._label = b.textContent; b.textContent = label; }
+  if (!b) return;
+  b.disabled = true; b._label = b.textContent; b.textContent = label;
+  // After 8s still waiting, hint that the database is waking up
+  b._wakeTimer = setTimeout(() => {
+    if (b.isConnected && b.disabled) b.textContent = 'Waking database...';
+  }, 8000);
 }
 function btnReady(id) {
   const b = document.getElementById(id);
-  if (b && b.isConnected) { b.disabled = false; b.textContent = b._label || b.textContent; }
+  if (!b || !b.isConnected) return;
+  clearTimeout(b._wakeTimer);
+  b.disabled = false; b.textContent = b._label || b.textContent;
 }
 
 function fmtDate(iso) {
