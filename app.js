@@ -288,7 +288,10 @@ async function signInWithDiscord() {
 
 async function signOut() {
   if (currentUser) localStorage.removeItem('cid-profile-' + currentUser.id);
-  await db.auth.signOut();
+  // Force-clear local state and show login immediately — don't wait on the network
+  currentUser = null; currentProfile = null; cases = [];
+  showScreen('login');
+  try { await Promise.race([db.auth.signOut(), new Promise(r => setTimeout(r, 5000))]); } catch (_) {}
 }
 
 // ─── Header ───────────────────────────────────────────────────────────────────
@@ -305,9 +308,29 @@ function updateHeader() {
 // ─── Dashboard ───────────────────────────────────────────────────────────────
 
 async function renderDashboard() {
-  const { data, error } = await db.from('cases').select('*').order('opened_at', { ascending: false });
-  if (error) { console.error(error); return; }
+  // Show loading state while waiting on cold DB
+  const noMsg = document.getElementById('no-cases-msg');
+  const table = document.getElementById('cases-table');
+  noMsg.textContent    = 'Loading cases...';
+  noMsg.style.display  = '';
+  table.style.display  = 'none';
+
+  let data, fetchError;
+  try {
+    const result = await dbqRetry(() =>
+      db.from('cases').select('*').order('opened_at', { ascending: false })
+    );
+    data       = result.data;
+    fetchError = result.error;
+  } catch (err) {
+    noMsg.innerHTML = 'Could not load cases — database is still waking up. <button class="btn btn-sm btn-secondary" style="margin-left:8px;" onclick="renderDashboard()">Retry</button>';
+    noMsg.style.display = '';
+    return;
+  }
+
+  if (fetchError) { console.error(fetchError); noMsg.textContent = 'Error loading cases: ' + fetchError.message; return; }
   cases = data || [];
+  noMsg.textContent = 'No cases found. Create a new case to get started.';
 
   const search       = document.getElementById('search-input').value.toLowerCase();
   const filterStatus = document.getElementById('filter-status').value;
