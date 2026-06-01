@@ -317,13 +317,14 @@ async function renderDashboard() {
 
   let data, fetchError;
   try {
-    const result = await dbqRetry(() =>
-      db.from('cases').select('*').order('opened_at', { ascending: false })
+    const result = await dbq(
+      db.from('cases').select('*').order('opened_at', { ascending: false }),
+      30000
     );
     data       = result.data;
     fetchError = result.error;
   } catch (err) {
-    noMsg.innerHTML = 'Could not load cases — database is still waking up. <button class="btn btn-sm btn-secondary" style="margin-left:8px;" onclick="renderDashboard()">Retry</button>';
+    noMsg.innerHTML = 'Database is still waking up — <button class="btn btn-sm btn-secondary" onclick="renderDashboard()">Retry</button>';
     noMsg.style.display = '';
     return;
   }
