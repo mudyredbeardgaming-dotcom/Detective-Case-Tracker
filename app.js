@@ -44,9 +44,26 @@ function dbq(promise, ms = 60000) {
   return Promise.race([
     promise,
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Database is taking too long to respond — it may still be waking up. Please wait a few seconds and try again.')), ms)
+      setTimeout(() => reject(new Error('__timeout__')), ms)
     ),
   ]);
+}
+
+// Calls fn() to get a fresh promise; retries once after 8s if the DB timed out
+async function dbqRetry(fn, ms = 60000) {
+  try {
+    return await dbq(fn(), ms);
+  } catch (err) {
+    if (err.message === '__timeout__') {
+      await new Promise(r => setTimeout(r, 8000));
+      try {
+        return await dbq(fn(), ms);
+      } catch (retryErr) {
+        throw new Error('Database is taking too long to respond — it may still be waking up. Please wait a moment and try again.');
+      }
+    }
+    throw err;
+  }
 }
 
 // Disable a button and swap its label while an async operation runs
@@ -723,10 +740,11 @@ async function saveNote() {
   try {
     const statusUpdate = document.getElementById('n-statusUpdate').value;
     const note = { id: genId(), detective, text, statusUpdate, createdAt: new Date().toISOString() };
-    const { data, error } = await dbq(
-      db.rpc('add_case_note', { p_case_id: currentCaseId, p_note: note, p_status: statusUpdate || null }).single()
+    const { data: noteRows, error } = await dbqRetry(() =>
+      db.rpc('add_case_note', { p_case_id: currentCaseId, p_note: note, p_status: statusUpdate || null })
     );
     if (error) throw new Error(error.message);
+    const data = noteRows?.[0];
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
     renderDetail();
@@ -741,10 +759,10 @@ async function saveNote() {
 
 async function deleteNote(noteId) {
   if (!confirm('Delete this note?')) return;
-  const { data, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'notes', p_item_id: noteId }).single();
+  const { data: rows, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'notes', p_item_id: noteId });
   if (error) { alert('Error: ' + error.message); return; }
   const idx = cases.findIndex(x => x.id === currentCaseId);
-  if (idx !== -1) cases[idx] = data;
+  if (idx !== -1) cases[idx] = rows?.[0];
   renderNotes();
 }
 
@@ -794,10 +812,11 @@ async function saveReport() {
       filedBy: document.getElementById('r-filedBy').value.trim(),
       content, createdAt: new Date().toISOString(),
     };
-    const { data, error } = await dbq(
-      db.rpc('add_case_report', { p_case_id: currentCaseId, p_report: report }).single()
+    const { data: reportRows, error } = await dbqRetry(() =>
+      db.rpc('add_case_report', { p_case_id: currentCaseId, p_report: report })
     );
     if (error) throw new Error(error.message);
+    const data = reportRows?.[0];
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
     renderDetail();
@@ -814,10 +833,10 @@ async function saveReport() {
 
 async function deleteReport(reportId) {
   if (!confirm('Delete this report?')) return;
-  const { data, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'reports', p_item_id: reportId }).single();
+  const { data: rows, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'reports', p_item_id: reportId });
   if (error) { alert('Error: ' + error.message); return; }
   const idx = cases.findIndex(x => x.id === currentCaseId);
-  if (idx !== -1) cases[idx] = data;
+  if (idx !== -1) cases[idx] = rows?.[0];
   renderReports();
 }
 
@@ -894,10 +913,11 @@ async function savePerson() {
       spoken, spokenBy: spoken ? document.getElementById('p-spokenBy').value.trim() : '',
     };
     activePoiRole = role;
-    const { data, error } = await dbq(
-      db.rpc('add_case_person', { p_case_id: currentCaseId, p_person: person }).single()
+    const { data: personRows, error } = await dbqRetry(() =>
+      db.rpc('add_case_person', { p_case_id: currentCaseId, p_person: person })
     );
     if (error) throw new Error(error.message);
+    const data = personRows?.[0];
     const idx = cases.findIndex(x => x.id === currentCaseId);
     if (idx !== -1) cases[idx] = data;
     renderDetail();
@@ -915,10 +935,10 @@ async function savePerson() {
 
 async function deletePerson(personId) {
   if (!confirm('Remove this person from the case?')) return;
-  const { data, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'persons', p_item_id: personId }).single();
+  const { data: rows, error } = await db.rpc('remove_from_case', { p_case_id: currentCaseId, p_field: 'persons', p_item_id: personId });
   if (error) { alert('Error: ' + error.message); return; }
   const idx = cases.findIndex(x => x.id === currentCaseId);
-  if (idx !== -1) cases[idx] = data;
+  if (idx !== -1) cases[idx] = rows?.[0];
   renderPersons();
 }
 

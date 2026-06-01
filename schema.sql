@@ -218,3 +218,9 @@ BEGIN
   RETURN QUERY SELECT * FROM cases WHERE id = p_case_id;
 END;
 $$;
+
+-- Ensure the authenticated role can call these functions
+GRANT EXECUTE ON FUNCTION add_case_note(TEXT, JSONB, TEXT)     TO authenticated;
+GRANT EXECUTE ON FUNCTION add_case_report(TEXT, JSONB)         TO authenticated;
+GRANT EXECUTE ON FUNCTION add_case_person(TEXT, JSONB)         TO authenticated;
+GRANT EXECUTE ON FUNCTION remove_from_case(TEXT, TEXT, TEXT)   TO authenticated;
