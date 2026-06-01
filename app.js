@@ -121,33 +121,32 @@ function showScreen(name) {
   document.getElementById('app-body').style.display       = name === 'app'     ? ''     : 'none';
 }
 
-// After 6s still loading: database is waking up from pause — let the user know
 setTimeout(() => {
   const ls = document.getElementById('loading-screen');
-  if (ls && ls.style.display !== 'none') {
-    document.getElementById('loading-msg').textContent = 'Waking up database...';
-  }
+  if (ls && ls.style.display !== 'none') document.getElementById('loading-msg').textContent = 'Waking up database...';
 }, 6000);
 
-// After 20s still loading: database is waking up from pause — let the user know
 setTimeout(() => {
   const ls = document.getElementById('loading-screen');
-  if (ls && ls.style.display !== 'none') {
-    document.getElementById('loading-msg').textContent = 'Almost there...';
-  }
+  if (ls && ls.style.display !== 'none') document.getElementById('loading-msg').textContent = 'Almost there...';
 }, 20000);
 
-// Safety net — fall back to login after 35 seconds
+setTimeout(() => {
+  const ls = document.getElementById('loading-screen');
+  if (ls && ls.style.display !== 'none') document.getElementById('loading-msg').textContent = 'Still waking up — this can take up to a minute on first load...';
+}, 40000);
+
+// Safety net — only fall back to login after 90s (cold DB can take 60s+)
 setTimeout(() => {
   const ls = document.getElementById('loading-screen');
   if (ls && ls.style.display !== 'none') {
     console.warn('[CID] Auth timed out — falling back to login');
     showScreen('login');
     const errEl = document.getElementById('login-error');
-    errEl.textContent   = 'Connection timed out. Please try logging in again.';
+    errEl.textContent   = 'Database took too long to respond. Click Login to try again — it should be faster now.';
     errEl.style.display = '';
   }
-}, 35000);
+}, 90000);
 
 function showView(name) {
   ['view-dashboard', 'view-detail', 'view-admin'].forEach(id => {
@@ -181,9 +180,9 @@ db.auth.onAuthStateChange(async (event, session) => {
 async function handleUserSession() {
   console.log('[CID] handleUserSession start, uid:', currentUser.id);
 
-  // Instant load for returning users — use sessionStorage cache, refresh in background
+  // Instant load for returning users — localStorage persists across browser restarts
   const cacheKey  = 'cid-profile-' + currentUser.id;
-  const cachedRaw = sessionStorage.getItem(cacheKey);
+  const cachedRaw = localStorage.getItem(cacheKey);
   if (cachedRaw) {
     try {
       const cached = JSON.parse(cachedRaw);
@@ -191,16 +190,27 @@ async function handleUserSession() {
         currentProfile = cached;
         console.log('[CID] instant load from cache, role:', cached.role);
         await enterApp();
+        // Background refresh — keep cached role/name up to date
         db.from('profiles').select('*').eq('id', currentUser.id).single()
-          .then(({ data }) => { if (data) { sessionStorage.setItem(cacheKey, JSON.stringify(data)); currentProfile = data; updateHeader(); } })
+          .then(({ data }) => {
+            if (data) {
+              localStorage.setItem(cacheKey, JSON.stringify(data));
+              currentProfile = data;
+              updateHeader();
+              // If the account was revoked since last visit, kick them out
+              if (!data.approved) { localStorage.removeItem(cacheKey); showScreen('pending'); }
+            }
+          })
           .catch(() => {});
         return;
       }
-    } catch (_) { sessionStorage.removeItem(cacheKey); }
+    } catch (_) { localStorage.removeItem(cacheKey); }
   }
 
-  // Full profile load (first visit or cache miss)
-  const { data: profile, error: profileErr } = await db.from('profiles').select('*').eq('id', currentUser.id).single();
+  // Full profile load (first ever visit or cache cleared) — retry on cold-start timeout
+  const { data: profile, error: profileErr } = await dbqRetry(() =>
+    db.from('profiles').select('*').eq('id', currentUser.id).single()
+  );
   console.log('[CID] profile query result:', profile ? 'found' : 'not found', profileErr?.code ?? '');
 
   if (profileErr && profileErr.code !== 'PGRST116') {
@@ -243,7 +253,7 @@ async function handleUserSession() {
   console.log('[CID] profile approved:', currentProfile?.approved, 'role:', currentProfile?.role);
 
   if (currentProfile?.approved) {
-    sessionStorage.setItem(cacheKey, JSON.stringify(currentProfile));
+    localStorage.setItem(cacheKey, JSON.stringify(currentProfile));
     await enterApp();
   } else {
     showScreen('pending');
@@ -271,7 +281,7 @@ async function signInWithDiscord() {
 }
 
 async function signOut() {
-  if (currentUser) sessionStorage.removeItem('cid-profile-' + currentUser.id);
+  if (currentUser) localStorage.removeItem('cid-profile-' + currentUser.id);
   await db.auth.signOut();
 }
 
