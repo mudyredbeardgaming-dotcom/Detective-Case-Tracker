@@ -131,22 +131,28 @@ setTimeout(() => {
   if (ls && ls.style.display !== 'none') document.getElementById('loading-msg').textContent = 'Almost there...';
 }, 20000);
 
+// After 45s show a manual retry button — reload picks up the existing auth session
+// and by this point the DB has had time to wake, so the retry usually succeeds fast
 setTimeout(() => {
   const ls = document.getElementById('loading-screen');
-  if (ls && ls.style.display !== 'none') document.getElementById('loading-msg').textContent = 'Still waking up — this can take up to a minute on first load...';
-}, 40000);
+  if (ls && ls.style.display !== 'none') {
+    document.getElementById('loading-msg').textContent = 'Database is taking longer than usual...';
+    const btn = document.getElementById('loading-retry');
+    if (btn) btn.style.display = '';
+  }
+}, 45000);
 
-// Safety net — only fall back to login after 90s (cold DB can take 60s+)
+// Hard safety net — fall back to login after 150s if nothing has worked
 setTimeout(() => {
   const ls = document.getElementById('loading-screen');
   if (ls && ls.style.display !== 'none') {
     console.warn('[CID] Auth timed out — falling back to login');
     showScreen('login');
     const errEl = document.getElementById('login-error');
-    errEl.textContent   = 'Database took too long to respond. Click Login to try again — it should be faster now.';
+    errEl.textContent   = 'Database took too long to respond. Click Login to try again — it should be faster now that the database has had time to wake up.';
     errEl.style.display = '';
   }
-}, 90000);
+}, 150000);
 
 function showView(name) {
   ['view-dashboard', 'view-detail', 'view-admin'].forEach(id => {
