@@ -180,6 +180,13 @@ db.auth.onAuthStateChange(async (event, session) => {
     currentProfile = null;
     cases          = [];
     showScreen('login');
+    // If a profile was cached, NO SESSION is likely a connection failure, not an expired login
+    const hadSession = Object.keys(localStorage).some(k => k.startsWith('cid-profile-'));
+    if (hadSession) {
+      const errEl = document.getElementById('login-error');
+      errEl.textContent   = 'Could not reach the server — this is usually temporary. Wait a moment, then click Login to try again.';
+      errEl.style.display = '';
+    }
   }
 });
 
